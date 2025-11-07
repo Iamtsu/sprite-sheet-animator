@@ -9,6 +9,10 @@ You are tasked with testing the sprite animation editor using Playwright MCP too
 - Editor Path: /editor.html
 - Timeout: 5000ms
 
+## Administrative Test Instructions
+
+Store all screenshots in the `.playwright-mcp/test-results/screenshots/` directory.
+
 ## Test Steps
 
 Execute the following tests using the MCP Playwright tools (mcp__playwright__*):
