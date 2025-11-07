@@ -68,12 +68,64 @@ class Editor {
 
         // Initialize
         this.setupEventListeners();
+        this.resizeSpriteCanvas();
         this.loadFromLocalStorage();
         this.updateUI();
         this.startPreviewLoop();
     }
 
+    resizeSpriteCanvas() {
+        // Get the container dimensions
+        const container = this.spriteCanvas.parentElement;
+        const rect = container.getBoundingClientRect();
+
+        // Account for padding (20px on each side)
+        const availableWidth = rect.width - 40;
+        const availableHeight = rect.height - 40;
+
+        // Set canvas to fill available space
+        this.spriteCanvas.width = availableWidth;
+        this.spriteCanvas.height = availableHeight;
+
+        // Redraw if we have an image loaded
+        if (this.state.spriteLoaded) {
+            this.drawSpriteCanvas();
+        }
+    }
+
+    fitImageToCanvas() {
+        if (!this.state.spriteImage) return;
+
+        const img = this.state.spriteImage;
+        const canvasWidth = this.spriteCanvas.width;
+        const canvasHeight = this.spriteCanvas.height;
+
+        // Calculate scale to fit image in canvas (with some padding)
+        const padding = 40; // px padding around the image
+        const scaleX = (canvasWidth - padding * 2) / img.width;
+        const scaleY = (canvasHeight - padding * 2) / img.height;
+        const scale = Math.min(scaleX, scaleY, 1); // Don't scale up beyond 100%
+
+        // Center the image
+        const scaledWidth = img.width * scale;
+        const scaledHeight = img.height * scale;
+        const panX = (canvasWidth - scaledWidth) / 2;
+        const panY = (canvasHeight - scaledHeight) / 2;
+
+        // Update zoom state
+        this.zoomState.scale = scale;
+        this.zoomState.panX = panX;
+        this.zoomState.panY = panY;
+
+        // Update zoom display
+        document.getElementById('zoomLevel').textContent = Math.round(scale * 100) + '%';
+    }
+
     setupEventListeners() {
+        // Window resize
+        window.addEventListener('resize', () => {
+            this.resizeSpriteCanvas();
+        });
         // Sprite canvas mouse events
         this.spriteCanvas.addEventListener('mousedown', (e) => this.handleCanvasMouseDown(e));
         this.spriteCanvas.addEventListener('mousemove', (e) => this.handleCanvasMouseMove(e));
@@ -131,8 +183,10 @@ class Editor {
         img.onload = () => {
             this.state.spriteImage = img;
             this.state.spriteLoaded = true;
-            this.spriteCanvas.width = img.width;
-            this.spriteCanvas.height = img.height;
+            // Canvas size is already set by resizeSpriteCanvas()
+
+            // Center and fit the image in the canvas
+            this.fitImageToCanvas();
             this.drawSpriteCanvas();
 
             // Create animator instance with the loaded sprite
@@ -159,10 +213,8 @@ class Editor {
     }
 
     resetZoom() {
-        this.zoomState.scale = 1;
-        this.zoomState.panX = 0;
-        this.zoomState.panY = 0;
-        this.updateZoomDisplay();
+        // Fit and center the image in the canvas
+        this.fitImageToCanvas();
         this.drawSpriteCanvas();
     }
 
