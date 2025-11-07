@@ -1,0 +1,20 @@
+{
+  "name": "sprite-animation-editor",
+  "version": "1.0.0",
+  "description": "A visual editor for creating sprite sheet animations",
+  "scripts": {
+    "test": "playwright test test-editor.js",
+    "test:ui": "playwright test test-editor.js --ui",
+    "serve": "python3 -m http.server 8080"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.40.0"
+  },
+  "keywords": [
+    "sprite",
+    "animation",
+    "editor"
+  ],
+  "author": "",
+  "license": "MIT"
+}
