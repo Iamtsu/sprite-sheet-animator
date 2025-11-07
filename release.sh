@@ -120,22 +120,43 @@ else
     echo -e "${YELLOW}📦 Changes detected → PATCH version bump (default)${NC}"
 fi
 
+# Calculate new version
+if [ "$DRY_RUN" = true ]; then
+    # In dry-run mode, calculate version manually without modifying files
+    IFS='.' read -r -a VERSION_PARTS <<< "$CURRENT_VERSION"
+    MAJOR="${VERSION_PARTS[0]}"
+    MINOR="${VERSION_PARTS[1]}"
+    PATCH="${VERSION_PARTS[2]}"
+
+    case $BUMP_TYPE in
+        major)
+            MAJOR=$((MAJOR + 1))
+            MINOR=0
+            PATCH=0
+            ;;
+        minor)
+            MINOR=$((MINOR + 1))
+            PATCH=0
+            ;;
+        patch)
+            PATCH=$((PATCH + 1))
+            ;;
+    esac
+
+    NEW_VERSION="${MAJOR}.${MINOR}.${PATCH}"
+    echo -e "${GREEN}New version: ${CURRENT_VERSION} → ${NEW_VERSION}${NC}"
+    echo ""
+    echo -e "${YELLOW}DRY RUN: Would bump ${BUMP_TYPE} version to ${NEW_VERSION}${NC}"
+    echo -e "${YELLOW}DRY RUN: No files will be modified. Run without --dry-run to perform release.${NC}"
+    exit 0
+fi
+
 # Use npm version to bump version (it updates package.json and package-lock.json)
 echo -e "${GREEN}Bumping ${BUMP_TYPE} version...${NC}"
-if [ "$DRY_RUN" = true ]; then
-    NEW_VERSION=$(npm version $BUMP_TYPE --no-git-tag-version --dry-run | tail -n 1)
-else
-    NEW_VERSION=$(npm version $BUMP_TYPE --no-git-tag-version)
-fi
+NEW_VERSION=$(npm version $BUMP_TYPE --no-git-tag-version)
 NEW_VERSION=${NEW_VERSION#v}  # Remove 'v' prefix
 
 echo -e "${GREEN}New version: ${CURRENT_VERSION} → ${NEW_VERSION}${NC}"
-
-if [ "$DRY_RUN" = true ]; then
-    echo -e "${YELLOW}DRY RUN: Would bump version to ${NEW_VERSION}${NC}"
-    echo -e "${YELLOW}DRY RUN: Stopping here. Run without --dry-run to perform release.${NC}"
-    exit 0
-fi
 
 # Commit version bump to develop
 echo -e "${GREEN}Committing version bump to develop...${NC}"
