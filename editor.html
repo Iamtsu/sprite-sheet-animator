@@ -306,6 +306,13 @@
 
             <div class="divider"></div>
 
+            <button onclick="editor.zoomIn()">Zoom In (+)</button>
+            <button onclick="editor.zoomOut()">Zoom Out (-)</button>
+            <button onclick="editor.resetZoom()">Reset Zoom (0)</button>
+            <span id="zoomLevel" style="color: #aaa; font-size: 12px; min-width: 60px;">100%</span>
+
+            <div class="divider"></div>
+
             <button onclick="editor.exportToJSON()">Export JSON</button>
             <button onclick="editor.importFromJSON()">Import JSON</button>
             <input type="file" id="jsonFileInput" accept=".json" onchange="editor.handleJSONFile(event)">

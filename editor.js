@@ -25,6 +25,13 @@ class Editor {
                 startX: 0,
                 startY: 0,
                 originalFrame: null
+            },
+            drag: {
+                isDragging: false,
+                startX: 0,
+                startY: 0,
+                originalX: 0,
+                originalY: 0
             }
         };
 
@@ -34,6 +41,18 @@ class Editor {
             frameTime: 0,
             lastTimestamp: 0,
             isPlaying: true
+        };
+
+        // Zoom and pan state
+        this.zoomState = {
+            scale: 1,
+            minScale: 0.1,
+            maxScale: 10,
+            panX: 0,
+            panY: 0,
+            isPanning: false,
+            panStartX: 0,
+            panStartY: 0
         };
 
         // Canvas references
@@ -54,6 +73,29 @@ class Editor {
         this.spriteCanvas.addEventListener('mousedown', (e) => this.handleCanvasMouseDown(e));
         this.spriteCanvas.addEventListener('mousemove', (e) => this.handleCanvasMouseMove(e));
         this.spriteCanvas.addEventListener('mouseup', (e) => this.handleCanvasMouseUp(e));
+        this.spriteCanvas.addEventListener('wheel', (e) => this.handleCanvasWheel(e), { passive: false });
+
+        // Prevent default middle mouse button behavior (auto-scroll)
+        this.spriteCanvas.addEventListener('contextmenu', (e) => {
+            if (e.button === 1) e.preventDefault();
+        });
+        this.spriteCanvas.addEventListener('auxclick', (e) => {
+            if (e.button === 1) e.preventDefault();
+        });
+
+        // Keyboard shortcuts for zoom
+        document.addEventListener('keydown', (e) => {
+            if (e.key === '+' || e.key === '=') {
+                e.preventDefault();
+                this.zoomIn();
+            } else if (e.key === '-' || e.key === '_') {
+                e.preventDefault();
+                this.zoomOut();
+            } else if (e.key === '0' || e.key === ')') {
+                e.preventDefault();
+                this.resetZoom();
+            }
+        });
     }
 
     // Sprite loading
@@ -93,6 +135,46 @@ class Editor {
             alert('Failed to load image');
         };
         img.src = src;
+    }
+
+    // Zoom functions
+    zoomIn() {
+        this.setZoom(this.zoomState.scale * 1.2);
+    }
+
+    zoomOut() {
+        this.setZoom(this.zoomState.scale / 1.2);
+    }
+
+    resetZoom() {
+        this.zoomState.scale = 1;
+        this.zoomState.panX = 0;
+        this.zoomState.panY = 0;
+        this.updateZoomDisplay();
+        this.drawSpriteCanvas();
+    }
+
+    setZoom(newScale) {
+        // Clamp zoom level
+        newScale = Math.max(this.zoomState.minScale, Math.min(this.zoomState.maxScale, newScale));
+
+        // Get canvas center point
+        const centerX = this.spriteCanvas.width / 2;
+        const centerY = this.spriteCanvas.height / 2;
+
+        // Adjust pan to zoom towards center
+        const scaleFactor = newScale / this.zoomState.scale;
+        this.zoomState.panX = centerX - (centerX - this.zoomState.panX) * scaleFactor;
+        this.zoomState.panY = centerY - (centerY - this.zoomState.panY) * scaleFactor;
+
+        this.zoomState.scale = newScale;
+        this.updateZoomDisplay();
+        this.drawSpriteCanvas();
+    }
+
+    updateZoomDisplay() {
+        const zoomPercent = Math.round(this.zoomState.scale * 100);
+        document.getElementById('zoomLevel').textContent = `${zoomPercent}%`;
     }
 
     // Animation management
@@ -295,11 +377,28 @@ class Editor {
                y >= frame.y && y <= frame.y + frame.height;
     }
 
+    // Convert screen coordinates to canvas coordinates (accounting for zoom and pan)
+    screenToCanvas(screenX, screenY) {
+        const x = (screenX - this.zoomState.panX) / this.zoomState.scale;
+        const y = (screenY - this.zoomState.panY) / this.zoomState.scale;
+        return { x, y };
+    }
+
     // Canvas drawing
     drawSpriteCanvas() {
         if (!this.state.spriteLoaded) return;
 
+        // Clear the entire canvas
         this.spriteCtx.clearRect(0, 0, this.spriteCanvas.width, this.spriteCanvas.height);
+
+        // Save the context state
+        this.spriteCtx.save();
+
+        // Apply zoom and pan transforms
+        this.spriteCtx.translate(this.zoomState.panX, this.zoomState.panY);
+        this.spriteCtx.scale(this.zoomState.scale, this.zoomState.scale);
+
+        // Draw the sprite image at origin
         this.spriteCtx.drawImage(this.state.spriteImage, 0, 0);
 
         // Draw frame overlays
@@ -342,6 +441,9 @@ class Editor {
             this.spriteCtx.fillStyle = 'rgba(255, 255, 0, 0.2)';
             this.spriteCtx.fillRect(x, y, w, h);
         }
+
+        // Restore the context state
+        this.spriteCtx.restore();
     }
 
     // Mouse event handlers
@@ -349,8 +451,22 @@ class Editor {
         if (!this.state.spriteLoaded) return;
 
         const rect = this.spriteCanvas.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const y = e.clientY - rect.top;
+        const screenX = e.clientX - rect.left;
+        const screenY = e.clientY - rect.top;
+        const { x, y } = this.screenToCanvas(screenX, screenY);
+
+        // Check for middle mouse button (pan mode)
+        if (e.button === 1) {
+            e.preventDefault();
+            this.zoomState.isPanning = true;
+            this.zoomState.panStartX = screenX - this.zoomState.panX;
+            this.zoomState.panStartY = screenY - this.zoomState.panY;
+            this.spriteCanvas.style.cursor = 'grabbing';
+            return;
+        }
+
+        // Only handle left mouse button for frame operations
+        if (e.button !== 0) return;
 
         // Check if clicking on a resize handle of the selected frame
         if (this.state.currentAnimation && this.state.selectedFrameIndex !== null) {
@@ -364,6 +480,17 @@ class Editor {
                     this.state.resize.startX = x;
                     this.state.resize.startY = y;
                     this.state.resize.originalFrame = { ...selectedFrame };
+                    return;
+                }
+
+                // Check if clicking inside the selected frame (to drag it)
+                if (this.isPointInFrame(selectedFrame, x, y)) {
+                    this.state.drag.isDragging = true;
+                    this.state.drag.startX = x;
+                    this.state.drag.startY = y;
+                    this.state.drag.originalX = selectedFrame.x;
+                    this.state.drag.originalY = selectedFrame.y;
+                    this.spriteCanvas.style.cursor = 'move';
                     return;
                 }
             }
@@ -393,8 +520,31 @@ class Editor {
 
     handleCanvasMouseMove(e) {
         const rect = this.spriteCanvas.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const y = e.clientY - rect.top;
+        const screenX = e.clientX - rect.left;
+        const screenY = e.clientY - rect.top;
+
+        // Handle panning
+        if (this.zoomState.isPanning) {
+            this.zoomState.panX = screenX - this.zoomState.panStartX;
+            this.zoomState.panY = screenY - this.zoomState.panStartY;
+            this.drawSpriteCanvas();
+            return;
+        }
+
+        const { x, y } = this.screenToCanvas(screenX, screenY);
+
+        // Handle dragging frame
+        if (this.state.drag.isDragging && this.state.selectedFrameIndex !== null) {
+            const dx = x - this.state.drag.startX;
+            const dy = y - this.state.drag.startY;
+            const newX = this.state.drag.originalX + dx;
+            const newY = this.state.drag.originalY + dy;
+
+            const frame = this.state.animations[this.state.currentAnimation].frames[this.state.selectedFrameIndex];
+            this.updateFrame(this.state.selectedFrameIndex, newX, newY, frame.width, frame.height);
+            this.drawSpriteCanvas();
+            return;
+        }
 
         // Handle resizing
         if (this.state.resize.isResizing && this.state.selectedFrameIndex !== null) {
@@ -462,12 +612,31 @@ class Editor {
                     this.spriteCanvas.style.cursor = cursors[handle];
                     return;
                 }
+                // Show move cursor when hovering over selected frame
+                if (this.isPointInFrame(selectedFrame, x, y)) {
+                    this.spriteCanvas.style.cursor = 'move';
+                    return;
+                }
             }
         }
         this.spriteCanvas.style.cursor = 'crosshair';
     }
 
     handleCanvasMouseUp(e) {
+        // End panning
+        if (this.zoomState.isPanning) {
+            this.zoomState.isPanning = false;
+            this.spriteCanvas.style.cursor = 'crosshair';
+            return;
+        }
+
+        // End dragging frame
+        if (this.state.drag.isDragging) {
+            this.state.drag.isDragging = false;
+            this.spriteCanvas.style.cursor = 'crosshair';
+            return;
+        }
+
         // End resizing
         if (this.state.resize.isResizing) {
             this.state.resize.isResizing = false;
@@ -479,8 +648,11 @@ class Editor {
         // End new frame selection
         if (this.state.selection.isSelecting) {
             const rect = this.spriteCanvas.getBoundingClientRect();
-            this.state.selection.currentX = e.clientX - rect.left;
-            this.state.selection.currentY = e.clientY - rect.top;
+            const screenX = e.clientX - rect.left;
+            const screenY = e.clientY - rect.top;
+            const canvasCoords = this.screenToCanvas(screenX, screenY);
+            this.state.selection.currentX = canvasCoords.x;
+            this.state.selection.currentY = canvasCoords.y;
 
             const x = Math.min(this.state.selection.startX, this.state.selection.currentX);
             const y = Math.min(this.state.selection.startY, this.state.selection.currentY);
@@ -494,6 +666,35 @@ class Editor {
             this.state.selection.isSelecting = false;
             this.drawSpriteCanvas();
         }
+    }
+
+    handleCanvasWheel(e) {
+        e.preventDefault();
+
+        const rect = this.spriteCanvas.getBoundingClientRect();
+        const screenX = e.clientX - rect.left;
+        const screenY = e.clientY - rect.top;
+
+        // Get the canvas position before zoom
+        const beforeZoom = this.screenToCanvas(screenX, screenY);
+
+        // Calculate new zoom level
+        const zoomFactor = e.deltaY < 0 ? 1.1 : 0.9;
+        let newScale = this.zoomState.scale * zoomFactor;
+        newScale = Math.max(this.zoomState.minScale, Math.min(this.zoomState.maxScale, newScale));
+
+        // Update scale
+        this.zoomState.scale = newScale;
+
+        // Get the canvas position after zoom
+        const afterZoom = this.screenToCanvas(screenX, screenY);
+
+        // Adjust pan to keep the mouse position fixed
+        this.zoomState.panX += (afterZoom.x - beforeZoom.x) * this.zoomState.scale;
+        this.zoomState.panY += (afterZoom.y - beforeZoom.y) * this.zoomState.scale;
+
+        this.updateZoomDisplay();
+        this.drawSpriteCanvas();
     }
 
     // UI updates
