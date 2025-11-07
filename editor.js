@@ -6,6 +6,9 @@ import { SpriteSheetAnimator } from './animator.js';
  */
 class Editor {
     constructor() {
+        // Check if running in Electron
+        this.isElectron = typeof window.electronAPI !== 'undefined';
+
         // State
         this.state = {
             spriteImage: null,
@@ -82,6 +85,139 @@ class Editor {
         this.loadFromLocalStorage();
         this.updateUI();
         this.startPreviewLoop();
+    }
+
+    // Modal dialog helpers
+    showAlert(message, title = 'Alert') {
+        return new Promise((resolve) => {
+            const overlay = document.getElementById('modalOverlay');
+            const titleEl = document.getElementById('modalTitle');
+            const messageEl = document.getElementById('modalMessage');
+            const inputEl = document.getElementById('modalInput');
+            const buttonsEl = document.getElementById('modalButtons');
+
+            titleEl.textContent = title;
+            messageEl.textContent = message;
+            inputEl.style.display = 'none';
+            buttonsEl.innerHTML = '<button id="modalOkBtn">OK</button>';
+
+            overlay.classList.add('active');
+
+            const okBtn = document.getElementById('modalOkBtn');
+            okBtn.onclick = () => {
+                overlay.classList.remove('active');
+                resolve();
+            };
+
+            // Allow Enter key to close
+            const handleKeyPress = (e) => {
+                if (e.key === 'Enter') {
+                    overlay.classList.remove('active');
+                    document.removeEventListener('keydown', handleKeyPress);
+                    resolve();
+                }
+            };
+            document.addEventListener('keydown', handleKeyPress);
+        });
+    }
+
+    showConfirm(message, title = 'Confirm') {
+        return new Promise((resolve) => {
+            const overlay = document.getElementById('modalOverlay');
+            const titleEl = document.getElementById('modalTitle');
+            const messageEl = document.getElementById('modalMessage');
+            const inputEl = document.getElementById('modalInput');
+            const buttonsEl = document.getElementById('modalButtons');
+
+            titleEl.textContent = title;
+            messageEl.textContent = message;
+            inputEl.style.display = 'none';
+            buttonsEl.innerHTML = `
+                <button id="modalCancelBtn" class="secondary">Cancel</button>
+                <button id="modalOkBtn">OK</button>
+            `;
+
+            overlay.classList.add('active');
+
+            const okBtn = document.getElementById('modalOkBtn');
+            const cancelBtn = document.getElementById('modalCancelBtn');
+
+            okBtn.onclick = () => {
+                overlay.classList.remove('active');
+                resolve(true);
+            };
+
+            cancelBtn.onclick = () => {
+                overlay.classList.remove('active');
+                resolve(false);
+            };
+
+            // Allow Enter/Escape keys
+            const handleKeyPress = (e) => {
+                if (e.key === 'Enter') {
+                    overlay.classList.remove('active');
+                    document.removeEventListener('keydown', handleKeyPress);
+                    resolve(true);
+                } else if (e.key === 'Escape') {
+                    overlay.classList.remove('active');
+                    document.removeEventListener('keydown', handleKeyPress);
+                    resolve(false);
+                }
+            };
+            document.addEventListener('keydown', handleKeyPress);
+        });
+    }
+
+    showPrompt(message, defaultValue = '', title = 'Input') {
+        return new Promise((resolve) => {
+            const overlay = document.getElementById('modalOverlay');
+            const titleEl = document.getElementById('modalTitle');
+            const messageEl = document.getElementById('modalMessage');
+            const inputEl = document.getElementById('modalInput');
+            const buttonsEl = document.getElementById('modalButtons');
+
+            titleEl.textContent = title;
+            messageEl.textContent = message;
+            inputEl.style.display = 'block';
+            inputEl.value = defaultValue;
+            buttonsEl.innerHTML = `
+                <button id="modalCancelBtn" class="secondary">Cancel</button>
+                <button id="modalOkBtn">OK</button>
+            `;
+
+            overlay.classList.add('active');
+            inputEl.focus();
+            inputEl.select();
+
+            const okBtn = document.getElementById('modalOkBtn');
+            const cancelBtn = document.getElementById('modalCancelBtn');
+
+            const submit = () => {
+                const value = inputEl.value.trim();
+                overlay.classList.remove('active');
+                resolve(value || null);
+            };
+
+            okBtn.onclick = submit;
+
+            cancelBtn.onclick = () => {
+                overlay.classList.remove('active');
+                resolve(null);
+            };
+
+            // Allow Enter to submit, Escape to cancel
+            const handleKeyPress = (e) => {
+                if (e.key === 'Enter') {
+                    document.removeEventListener('keydown', handleKeyPress);
+                    submit();
+                } else if (e.key === 'Escape') {
+                    overlay.classList.remove('active');
+                    document.removeEventListener('keydown', handleKeyPress);
+                    resolve(null);
+                }
+            };
+            document.addEventListener('keydown', handleKeyPress);
+        });
     }
 
     resizeSpriteCanvas() {
@@ -192,6 +328,16 @@ class Editor {
         // Background color controls
         document.getElementById('editorBgColor')?.addEventListener('input', (e) => this.updateEditorBgColor(e.target.value));
         document.getElementById('previewBgColor')?.addEventListener('input', (e) => this.updatePreviewBgColor(e.target.value));
+
+        // Electron menu integration
+        if (this.isElectron) {
+            window.electronAPI.onLoadSpriteSheet((filePath) => this.loadSpriteFromElectronPath(filePath));
+            window.electronAPI.onImportAnimationData((data) => this.importFromJSONString(data));
+            window.electronAPI.onRequestExportData(() => this.exportToJSONElectron());
+            window.electronAPI.onMenuZoomIn(() => this.zoomIn());
+            window.electronAPI.onMenuZoomOut(() => this.zoomOut());
+            window.electronAPI.onMenuResetZoom(() => this.resetZoom());
+        }
     }
 
     // Sprite loading
@@ -237,7 +383,7 @@ class Editor {
             this.saveToLocalStorage();
         };
         img.onerror = () => {
-            alert('Failed to load image');
+            this.showAlert('Failed to load image', 'Error');
         };
         img.src = src;
     }
@@ -281,11 +427,11 @@ class Editor {
     }
 
     // Animation management
-    createNewAnimation() {
-        const name = prompt('Animation name:');
+    async createNewAnimation() {
+        const name = await this.showPrompt('Enter animation name:', '', 'New Animation');
         if (!name) return;
         if (this.state.animations[name]) {
-            alert('Animation already exists');
+            await this.showAlert('Animation already exists', 'Error');
             return;
         }
 
@@ -317,8 +463,9 @@ class Editor {
         this.previewState.frameTime = 0;
     }
 
-    deleteAnimation(name) {
-        if (!confirm(`Delete animation "${name}"?`)) return;
+    async deleteAnimation(name) {
+        const confirmed = await this.showConfirm(`Delete animation "${name}"?`, 'Confirm Delete');
+        if (!confirmed) return;
         delete this.state.animations[name];
         if (this.state.currentAnimation === name) {
             this.state.currentAnimation = null;
@@ -327,12 +474,12 @@ class Editor {
         this.saveToLocalStorage();
     }
 
-    renameAnimation(oldName) {
-        const newName = prompt('Enter new animation name:', oldName);
+    async renameAnimation(oldName) {
+        const newName = await this.showPrompt('Enter new animation name:', oldName, 'Rename Animation');
         if (!newName || newName === oldName) return;
 
         if (this.state.animations[newName]) {
-            alert(`Animation "${newName}" already exists`);
+            await this.showAlert(`Animation "${newName}" already exists`, 'Error');
             return;
         }
 
@@ -400,7 +547,7 @@ class Editor {
     // Frame management
     addFrame(x, y, width, height) {
         if (!this.state.currentAnimation) {
-            alert('Please select or create an animation first');
+            this.showAlert('Please select or create an animation first', 'No Animation Selected');
             return;
         }
 
@@ -545,7 +692,7 @@ class Editor {
 
         // Check if we have a current animation
         if (!this.state.currentAnimation) {
-            alert('Please select or create an animation first');
+            this.showAlert('Please select or create an animation first', 'No Animation Selected');
             return;
         }
 
@@ -650,7 +797,7 @@ class Editor {
 
         // Validate bounding box
         if (boundingBox.width < 1 || boundingBox.height < 1) {
-            alert('Invalid frame detected');
+            this.showAlert('Invalid frame detected', 'Error');
             return;
         }
 
@@ -1298,6 +1445,61 @@ class Editor {
         URL.revokeObjectURL(url);
     }
 
+    async exportToJSONElectron() {
+        if (!this.isElectron) {
+            this.exportToJSON();
+            return;
+        }
+
+        const data = {
+            animations: this.state.animations,
+            spriteSheet: this.state.spriteImage ? this.state.spriteImage.src : null,
+            editorBgColor: this.state.editorBgColor,
+            previewBgColor: this.state.previewBgColor
+        };
+
+        const jsonString = JSON.stringify(data, null, 2);
+        const result = await window.electronAPI.saveJSONFile(jsonString);
+
+        if (result.success) {
+            console.log('Saved to:', result.path);
+        }
+    }
+
+    loadSpriteFromElectronPath(filePath) {
+        // Convert file path to file:// URL for loading
+        const fileUrl = `file://${filePath}`;
+        this.loadSpriteImage(fileUrl);
+    }
+
+    importFromJSONString(jsonString) {
+        try {
+            const data = JSON.parse(jsonString);
+            this.state.animations = data.animations || {};
+
+            if (data.spriteSheet) {
+                this.loadSpriteImage(data.spriteSheet);
+            }
+
+            // Load background colors
+            if (data.editorBgColor) {
+                this.state.editorBgColor = data.editorBgColor;
+                document.getElementById('editorBgColor').value = data.editorBgColor;
+            }
+            if (data.previewBgColor) {
+                this.state.previewBgColor = data.previewBgColor;
+                document.getElementById('previewBgColor').value = data.previewBgColor;
+            }
+
+            this.state.currentAnimation = null;
+            this.updateUI();
+            this.drawSpriteCanvas();
+            this.saveToLocalStorage();
+        } catch (err) {
+            this.showAlert('Failed to parse JSON: ' + err.message, 'Import Error');
+        }
+    }
+
     importFromJSON() {
         document.getElementById('jsonFileInput').click();
     }
@@ -1331,7 +1533,7 @@ class Editor {
                 this.drawSpriteCanvas();
                 this.saveToLocalStorage();
             } catch (err) {
-                alert('Failed to parse JSON: ' + err.message);
+                this.showAlert('Failed to parse JSON: ' + err.message, 'Import Error');
             }
         };
         reader.readAsText(file);

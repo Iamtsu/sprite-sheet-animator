@@ -2,19 +2,69 @@
   "name": "sprite-animation-editor",
   "version": "1.0.0",
   "description": "A visual editor for creating sprite sheet animations",
+  "main": "main.js",
   "scripts": {
+    "start": "electron . --no-sandbox",
+    "dev": "electron . --enable-logging --no-sandbox",
+    "build": "electron-builder",
+    "build:win": "electron-builder --windows",
+    "build:mac": "electron-builder --mac",
+    "build:linux": "electron-builder --linux",
     "test": "playwright test test-editor.js",
     "test:ui": "playwright test test-editor.js --ui",
     "serve": "python3 -m http.server 8080"
   },
+  "dependencies": {
+    "electron-squirrel-startup": "^1.0.0"
+  },
   "devDependencies": {
-    "@playwright/test": "^1.40.0"
+    "@playwright/test": "^1.40.0",
+    "electron": "^28.0.0",
+    "electron-builder": "^24.9.1"
+  },
+  "build": {
+    "appId": "com.spriteanimationeditor.app",
+    "productName": "Sprite Animation Editor",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "editor.html",
+      "editor.js",
+      "animator.js",
+      "resources/**/*"
+    ],
+    "win": {
+      "target": ["nsis"],
+      "icon": "resources/icon.png"
+    },
+    "mac": {
+      "target": ["dmg"],
+      "icon": "resources/icon.png"
+    },
+    "linux": {
+      "target": ["AppImage", "deb"],
+      "icon": "resources/icon.png",
+      "category": "Graphics",
+      "maintainer": "your.email@example.com"
+    }
   },
   "keywords": [
     "sprite",
     "animation",
-    "editor"
+    "editor",
+    "electron"
   ],
-  "author": "",
+  "author": {
+    "name": "Your Name",
+    "email": "your.email@example.com"
+  },
+  "homepage": "https://github.com/yourusername/sprite-animation-editor",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/sprite-animation-editor.git"
+  },
   "license": "MIT"
 }
