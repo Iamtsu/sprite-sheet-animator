@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sprite Animation Demo</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .container {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            padding: 40px;
+            max-width: 900px;
+            width: 100%;
+        }
+
+        h1 {
+            margin: 0 0 10px 0;
+            color: #333;
+        }
+
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+
+        .subtitle a {
+            color: #667eea;
+            text-decoration: none;
+        }
+
+        .subtitle a:hover {
+            text-decoration: underline;
+        }
+
+        .demo-area {
+            background: #f5f5f5;
+            border-radius: 8px;
+            padding: 30px;
+            margin-bottom: 30px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        canvas {
+            border: 2px solid #ddd;
+            border-radius: 4px;
+            background: #fff;
+            image-rendering: pixelated;
+        }
+
+        .controls {
+            margin-top: 20px;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        button:hover {
+            background: #5568d3;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        .info-box {
+            background: #f9f9f9;
+            border-left: 4px solid #667eea;
+            padding: 20px;
+            border-radius: 4px;
+            margin-top: 20px;
+        }
+
+        .info-box h3 {
+            margin: 0 0 10px 0;
+            color: #333;
+            font-size: 16px;
+        }
+
+        .info-box p {
+            margin: 0;
+            color: #666;
+            line-height: 1.6;
+            font-size: 14px;
+        }
+
+        code {
+            background: #e0e0e0;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+        }
+
+        .upload-section {
+            margin-top: 20px;
+            padding: 20px;
+            background: #f0f0f0;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .upload-section input[type="file"] {
+            display: none;
+        }
+
+        .upload-btn {
+            background: #764ba2;
+        }
+
+        .upload-btn:hover {
+            background: #653a8a;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Sprite Animation Demo</h1>
+        <p class="subtitle">
+            Using the <code>SpriteSheetAnimator</code> class |
+            <a href="editor.html">Open Animation Editor</a>
+        </p>
+
+        <div class="demo-area">
+            <canvas id="demoCanvas" width="400" height="300"></canvas>
+            <div class="controls" id="animationButtons">
+                <button onclick="playAnimation('idle')">Play: Idle</button>
+                <button onclick="playAnimation('walk')">Play: Walk</button>
+                <button onclick="playAnimation('run')">Play: Run</button>
+                <button onclick="animator.pause()">Pause</button>
+                <button onclick="animator.resume()">Resume</button>
+                <button onclick="animator.stop()">Stop</button>
+            </div>
+        </div>
+
+        <div class="upload-section">
+            <button class="upload-btn" onclick="loadCustomAnimations()">Load Animation JSON</button>
+            <input type="file" id="jsonFileInput" accept=".json" onchange="handleJSONFile(event)">
+            <p style="margin-top: 10px; color: #666; font-size: 13px;">
+                Load animation definitions exported from the editor
+            </p>
+        </div>
+
+        <div class="info-box">
+            <h3>Getting Started</h3>
+            <p>
+                1. Open the <a href="editor.html">Animation Editor</a> to create your own sprite animations<br>
+                2. Load a sprite sheet and define animations by clicking frames<br>
+                3. Export your animation definitions as JSON<br>
+                4. Load the JSON file here to see your animations in action!
+            </p>
+        </div>
+
+        <div class="info-box" style="margin-top: 15px;">
+            <h3>Example Setup</h3>
+            <p>
+                This demo creates animations programmatically. You can do the same in your projects:
+            </p>
+            <pre style="background: #2d2d2d; color: #e0e0e0; padding: 15px; border-radius: 4px; overflow-x: auto; margin-top: 10px; font-size: 12px;">
+const animator = new SpriteSheetAnimator('sprite.png', {
+    frameWidth: 64,
+    frameHeight: 64
+});
+
+await animator.waitForLoad();
+
+animator.addAnimationFromGrid('walk', {
+    row: 0,
+    startCol: 0,
+    frameCount: 8,
+    frameRate: 12,
+    loop: true
+});
+
+animator.play('walk');
+
+// In game loop
+function gameLoop(timestamp) {
+    animator.update(deltaTime);
+    animator.draw(ctx, x, y);
+    requestAnimationFrame(gameLoop);
+}</pre>
+        </div>
+    </div>
+
+    <script src="animator.js"></script>
+    <script>
+        const canvas = document.getElementById('demoCanvas');
+        const ctx = canvas.getContext('2d');
+
+        let animator = null;
+        let lastTime = 0;
+        let customAnimations = null;
+
+        // Initialize with example animation
+        async function init() {
+            // Create an example animator (will be replaced when user loads custom animations)
+            animator = new SpriteSheetAnimator('resources/animated_character_1.png', {
+                frameWidth: 64,
+                frameHeight: 64,
+                offsetX: 0,
+                offsetY: 0
+            });
+
+            try {
+                await animator.waitForLoad();
+
+                // Add some example animations (these are placeholders - adjust based on actual sprite sheet)
+                animator.addAnimationFromGrid('idle', {
+                    row: 0,
+                    startCol: 0,
+                    frameCount: 4,
+                    frameRate: 6,
+                    loop: true
+                });
+
+                animator.addAnimationFromGrid('walk', {
+                    row: 1,
+                    startCol: 0,
+                    frameCount: 8,
+                    frameRate: 12,
+                    loop: true
+                });
+
+                animator.addAnimationFromGrid('run', {
+                    row: 2,
+                    startCol: 0,
+                    frameCount: 8,
+                    frameRate: 16,
+                    loop: true
+                });
+
+                animator.play('idle');
+                startAnimationLoop();
+            } catch (err) {
+                ctx.fillStyle = '#666';
+                ctx.font = '14px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText('No sprite sheet found. Use the editor to create animations!', canvas.width / 2, canvas.height / 2);
+                ctx.fillText('Or load a custom animation JSON file above.', canvas.width / 2, canvas.height / 2 + 20);
+            }
+        }
+
+        function startAnimationLoop() {
+            function loop(timestamp) {
+                const deltaTime = timestamp - lastTime;
+                lastTime = timestamp;
+
+                // Clear canvas
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                // Update and draw animator
+                if (animator) {
+                    animator.update(deltaTime);
+
+                    // Center the sprite
+                    const x = canvas.width / 2 - 32; // Half of frame width
+                    const y = canvas.height / 2 - 32; // Half of frame height
+
+                    // Draw with 2x scale for better visibility
+                    animator.draw(ctx, x, y, 128, 128);
+
+                    // Display current animation info
+                    ctx.fillStyle = '#333';
+                    ctx.font = '12px sans-serif';
+                    ctx.textAlign = 'left';
+                    const animName = animator.getCurrentAnimation() || 'None';
+                    const frame = animator.getCurrentFrame();
+                    ctx.fillText(`Animation: ${animName} | Frame: ${frame}`, 10, 20);
+                }
+
+                requestAnimationFrame(loop);
+            }
+            requestAnimationFrame(loop);
+        }
+
+        function playAnimation(name) {
+            if (animator) {
+                animator.play(name);
+            }
+        }
+
+        function loadCustomAnimations() {
+            document.getElementById('jsonFileInput').click();
+        }
+
+        function handleJSONFile(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                try {
+                    const data = JSON.parse(e.target.result);
+
+                    if (!data.spriteSheet) {
+                        alert('No sprite sheet found in JSON file');
+                        return;
+                    }
+
+                    // Create new animator with loaded data
+                    animator = new SpriteSheetAnimator(data.spriteSheet, {
+                        frameWidth: 64,
+                        frameHeight: 64
+                    });
+
+                    await animator.waitForLoad();
+
+                    // Load animations from JSON
+                    Object.keys(data.animations).forEach(name => {
+                        const anim = data.animations[name];
+                        animator.addAnimation(name, {
+                            frames: anim.frames,
+                            frameRate: anim.fps,
+                            loop: anim.loop
+                        });
+                    });
+
+                    // Update UI with available animations
+                    updateAnimationButtons(Object.keys(data.animations));
+
+                    // Play first animation
+                    const firstAnim = Object.keys(data.animations)[0];
+                    if (firstAnim) {
+                        animator.play(firstAnim);
+                    }
+
+                    customAnimations = data;
+                } catch (err) {
+                    alert('Failed to load animations: ' + err.message);
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        function updateAnimationButtons(animationNames) {
+            const container = document.getElementById('animationButtons');
+            container.innerHTML = '';
+
+            animationNames.forEach(name => {
+                const btn = document.createElement('button');
+                btn.textContent = `Play: ${name}`;
+                btn.onclick = () => playAnimation(name);
+                container.appendChild(btn);
+            });
+
+            // Add control buttons
+            const pauseBtn = document.createElement('button');
+            pauseBtn.textContent = 'Pause';
+            pauseBtn.onclick = () => animator.pause();
+            container.appendChild(pauseBtn);
+
+            const resumeBtn = document.createElement('button');
+            resumeBtn.textContent = 'Resume';
+            resumeBtn.onclick = () => animator.resume();
+            container.appendChild(resumeBtn);
+
+            const stopBtn = document.createElement('button');
+            stopBtn.textContent = 'Stop';
+            stopBtn.onclick = () => animator.stop();
+            container.appendChild(stopBtn);
+        }
+
+        // Start the demo
+        init();
+    </script>
+</body>
+</html>

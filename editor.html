@@ -1,0 +1,1036 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sprite Animation Editor</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #1e1e1e;
+            color: #e0e0e0;
+            overflow: hidden;
+        }
+
+        .container {
+            display: grid;
+            grid-template-columns: 250px 1fr 300px;
+            grid-template-rows: 60px 1fr 220px;
+            height: 100vh;
+            gap: 1px;
+            background: #000;
+        }
+
+        .toolbar {
+            grid-column: 1 / -1;
+            background: #2d2d2d;
+            padding: 10px 20px;
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .sidebar {
+            background: #252525;
+            padding: 15px;
+            overflow-y: auto;
+        }
+
+        .main-canvas-area {
+            background: #1a1a1a;
+            padding: 20px;
+            overflow: auto;
+            position: relative;
+        }
+
+        .frame-panel {
+            background: #252525;
+            padding: 15px;
+            overflow-y: auto;
+        }
+
+        .preview-area {
+            grid-column: 1 / -1;
+            background: #2d2d2d;
+            padding: 15px;
+            display: flex;
+            gap: 20px;
+            align-items: flex-start;
+        }
+
+        h3 {
+            margin-bottom: 15px;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #888;
+        }
+
+        button {
+            background: #0d7377;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: background 0.2s;
+        }
+
+        button:hover {
+            background: #0a5c5f;
+        }
+
+        button:disabled {
+            background: #444;
+            cursor: not-allowed;
+        }
+
+        button.secondary {
+            background: #444;
+        }
+
+        button.secondary:hover {
+            background: #555;
+        }
+
+        button.danger {
+            background: #a83232;
+        }
+
+        button.danger:hover {
+            background: #8a2828;
+        }
+
+        input[type="text"],
+        input[type="number"],
+        input[type="url"] {
+            background: #1a1a1a;
+            border: 1px solid #444;
+            color: #e0e0e0;
+            padding: 6px 10px;
+            border-radius: 4px;
+            font-size: 13px;
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+
+        label {
+            font-size: 12px;
+            color: #aaa;
+            margin-right: 8px;
+        }
+
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .mode-toggle {
+            display: flex;
+            gap: 2px;
+            background: #1a1a1a;
+            padding: 2px;
+            border-radius: 4px;
+        }
+
+        .mode-toggle button {
+            background: transparent;
+            padding: 6px 12px;
+        }
+
+        .mode-toggle button.active {
+            background: #0d7377;
+        }
+
+        #spriteCanvas {
+            border: 2px solid #444;
+            cursor: crosshair;
+            display: block;
+            image-rendering: pixelated;
+        }
+
+        .animation-list {
+            list-style: none;
+        }
+
+        .animation-item {
+            padding: 10px;
+            margin-bottom: 5px;
+            background: #1a1a1a;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background 0.2s;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .animation-item:hover {
+            background: #222;
+        }
+
+        .animation-item.active {
+            background: #0d7377;
+        }
+
+        .animation-item-name {
+            flex: 1;
+        }
+
+        .animation-item-delete {
+            background: #a83232;
+            padding: 4px 8px;
+            font-size: 11px;
+        }
+
+        .frame-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .frame-item {
+            background: #1a1a1a;
+            border-radius: 4px;
+            padding: 10px;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            cursor: move;
+        }
+
+        .frame-item.dragging {
+            opacity: 0.5;
+        }
+
+        .frame-thumbnail {
+            width: 48px;
+            height: 48px;
+            background: #2d2d2d;
+            border: 1px solid #444;
+            border-radius: 2px;
+            image-rendering: pixelated;
+        }
+
+        .frame-info {
+            flex: 1;
+            font-size: 11px;
+            color: #aaa;
+        }
+
+        .frame-duration {
+            width: 60px;
+        }
+
+        .frame-delete {
+            background: #a83232;
+            padding: 4px 8px;
+            font-size: 11px;
+        }
+
+        .preview-canvas-wrapper {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        #previewCanvas {
+            border: 1px solid #444;
+            background: #000;
+            image-rendering: pixelated;
+        }
+
+        .empty-state {
+            text-align: center;
+            color: #666;
+            padding: 40px 20px;
+            font-size: 14px;
+        }
+
+        .grid-overlay {
+            position: absolute;
+            pointer-events: none;
+            top: 20px;
+            left: 20px;
+        }
+
+        .divider {
+            width: 1px;
+            height: 30px;
+            background: #444;
+        }
+
+        .animation-config {
+            margin-top: 15px;
+            padding: 15px;
+            background: #1a1a1a;
+            border-radius: 4px;
+        }
+
+        .config-row {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+            align-items: center;
+        }
+
+        .config-row label {
+            min-width: 80px;
+        }
+
+        .checkbox-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        input[type="checkbox"] {
+            width: 16px;
+            height: 16px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Toolbar -->
+        <div class="toolbar">
+            <button onclick="loadSpriteFile()">Load Sprite Sheet</button>
+            <input type="file" id="spriteFileInput" accept="image/*" onchange="handleSpriteFile(event)">
+
+            <div class="control-group">
+                <label>URL:</label>
+                <input type="url" id="spriteUrl" placeholder="Image URL" style="width: 200px;">
+                <button onclick="loadSpriteUrl()">Load</button>
+            </div>
+
+            <div class="divider"></div>
+
+            <div class="mode-toggle">
+                <button id="gridModeBtn" class="active" onclick="setMode('grid')">Grid</button>
+                <button id="freeformModeBtn" onclick="setMode('freeform')">Freeform</button>
+            </div>
+
+            <div class="control-group" id="gridControls">
+                <label>Frame:</label>
+                <input type="number" id="frameWidth" value="64" min="1" style="width: 60px;">
+                <span>×</span>
+                <input type="number" id="frameHeight" value="64" min="1" style="width: 60px;">
+                <label>Offset:</label>
+                <input type="number" id="offsetX" value="0" min="0" style="width: 50px;">
+                <input type="number" id="offsetY" value="0" min="0" style="width: 50px;">
+            </div>
+
+            <div class="divider"></div>
+
+            <button onclick="exportToJSON()">Export JSON</button>
+            <button onclick="importFromJSON()">Import JSON</button>
+            <input type="file" id="jsonFileInput" accept=".json" onchange="handleJSONFile(event)">
+        </div>
+
+        <!-- Left Sidebar - Animation List -->
+        <div class="sidebar">
+            <h3>Animations</h3>
+            <button onclick="createNewAnimation()" style="width: 100%; margin-bottom: 15px;">+ New Animation</button>
+            <ul class="animation-list" id="animationList"></ul>
+        </div>
+
+        <!-- Main Canvas Area -->
+        <div class="main-canvas-area">
+            <canvas id="spriteCanvas"></canvas>
+        </div>
+
+        <!-- Right Panel - Frame List -->
+        <div class="frame-panel">
+            <h3>Frames</h3>
+            <div id="animationConfig" class="animation-config" style="display: none;">
+                <div class="config-row">
+                    <label>Name:</label>
+                    <input type="text" id="animationName" oninput="updateAnimationName()">
+                </div>
+                <div class="config-row">
+                    <label>FPS:</label>
+                    <input type="number" id="animationFPS" value="10" min="1" max="60" oninput="updateAnimationConfig()">
+                </div>
+                <div class="config-row">
+                    <label>Loop:</label>
+                    <div class="checkbox-wrapper">
+                        <input type="checkbox" id="animationLoop" checked onchange="updateAnimationConfig()">
+                    </div>
+                </div>
+            </div>
+            <div id="frameListContainer"></div>
+        </div>
+
+        <!-- Preview Area -->
+        <div class="preview-area">
+            <div style="display: flex; gap: 15px; align-items: flex-start;">
+                <div class="preview-canvas-wrapper">
+                    <label>Preview:</label>
+                    <canvas id="previewCanvas" width="128" height="128"></canvas>
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 5px;">
+                    <button onclick="reloadPreview()" style="padding: 6px 12px; font-size: 12px; min-width: 70px;">Reload</button>
+                    <button id="playPauseBtn" onclick="togglePlayPreview()" style="padding: 6px 12px; font-size: 12px; min-width: 70px;">Pause</button>
+                    <button onclick="stopPreview()" style="padding: 6px 12px; font-size: 12px; min-width: 70px;">Stop</button>
+                </div>
+            </div>
+            <div style="flex: 1;">
+                <div id="previewInfo" style="font-size: 12px; color: #aaa;"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // State
+        let state = {
+            spriteImage: null,
+            spriteLoaded: false,
+            mode: 'grid',
+            animations: {},
+            currentAnimation: null,
+            draggedFrame: null,
+            selection: {
+                isSelecting: false,
+                startX: 0,
+                startY: 0,
+                currentX: 0,
+                currentY: 0
+            }
+        };
+
+        // Canvas references
+        const spriteCanvas = document.getElementById('spriteCanvas');
+        const spriteCtx = spriteCanvas.getContext('2d');
+        const previewCanvas = document.getElementById('previewCanvas');
+        const previewCtx = previewCanvas.getContext('2d');
+
+        // Preview animation state
+        let previewState = {
+            currentFrame: 0,
+            frameTime: 0,
+            lastTimestamp: 0,
+            isPlaying: true
+        };
+
+        // Initialize
+        loadFromLocalStorage();
+        updateUI();
+        startPreviewLoop();
+
+        // Sprite loading
+        function loadSpriteFile() {
+            document.getElementById('spriteFileInput').click();
+        }
+
+        function handleSpriteFile(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    loadSpriteImage(e.target.result);
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+
+        function loadSpriteUrl() {
+            const url = document.getElementById('spriteUrl').value;
+            if (url) {
+                loadSpriteImage(url);
+            }
+        }
+
+        function loadSpriteImage(src) {
+            const img = new Image();
+            img.onload = () => {
+                state.spriteImage = img;
+                state.spriteLoaded = true;
+                spriteCanvas.width = img.width;
+                spriteCanvas.height = img.height;
+                drawSpriteCanvas();
+                saveToLocalStorage();
+            };
+            img.onerror = () => {
+                alert('Failed to load image');
+            };
+            img.src = src;
+        }
+
+        // Mode switching
+        function setMode(mode) {
+            state.mode = mode;
+            document.getElementById('gridModeBtn').classList.toggle('active', mode === 'grid');
+            document.getElementById('freeformModeBtn').classList.toggle('active', mode === 'freeform');
+            document.getElementById('gridControls').style.display = mode === 'grid' ? 'flex' : 'none';
+            drawSpriteCanvas();
+        }
+
+        // Animation management
+        function createNewAnimation() {
+            const name = prompt('Animation name:');
+            if (!name) return;
+            if (state.animations[name]) {
+                alert('Animation already exists');
+                return;
+            }
+
+            state.animations[name] = {
+                name: name,
+                frames: [],
+                fps: 10,
+                loop: true
+            };
+
+            state.currentAnimation = name;
+            updateUI();
+            saveToLocalStorage();
+        }
+
+        function selectAnimation(name) {
+            state.currentAnimation = name;
+            resetPreviewState();
+            previewState.isPlaying = true;
+            updatePlayPauseButton();
+            updateUI();
+            drawSpriteCanvas();
+        }
+
+        function resetPreviewState() {
+            previewState.currentFrame = 0;
+            previewState.frameTime = 0;
+        }
+
+        function deleteAnimation(name) {
+            if (!confirm(`Delete animation "${name}"?`)) return;
+            delete state.animations[name];
+            if (state.currentAnimation === name) {
+                state.currentAnimation = null;
+            }
+            updateUI();
+            saveToLocalStorage();
+        }
+
+        function updateAnimationName() {
+            const newName = document.getElementById('animationName').value;
+            const oldName = state.currentAnimation;
+            if (newName && newName !== oldName && !state.animations[newName]) {
+                state.animations[newName] = state.animations[oldName];
+                state.animations[newName].name = newName;
+                delete state.animations[oldName];
+                state.currentAnimation = newName;
+                updateUI();
+                saveToLocalStorage();
+            }
+        }
+
+        function updateAnimationConfig() {
+            if (!state.currentAnimation) return;
+            const anim = state.animations[state.currentAnimation];
+            anim.fps = parseInt(document.getElementById('animationFPS').value) || 10;
+            anim.loop = document.getElementById('animationLoop').checked;
+            resetPreviewState(); // Restart preview when config changes
+            previewState.isPlaying = true;
+            updatePlayPauseButton();
+            saveToLocalStorage();
+        }
+
+        // Frame management
+        function addFrame(x, y, width, height) {
+            if (!state.currentAnimation) {
+                alert('Please select or create an animation first');
+                return;
+            }
+
+            const anim = state.animations[state.currentAnimation];
+            anim.frames.push({
+                x: x,
+                y: y,
+                width: width,
+                height: height,
+                duration: 1000 / anim.fps
+            });
+
+            updateUI();
+            drawSpriteCanvas();
+            saveToLocalStorage();
+        }
+
+        function deleteFrame(index) {
+            if (!state.currentAnimation) return;
+            state.animations[state.currentAnimation].frames.splice(index, 1);
+            // Reset preview if we deleted the current or a previous frame
+            if (previewState.currentFrame >= index) {
+                resetPreviewState();
+            }
+            updateUI();
+            drawSpriteCanvas();
+            saveToLocalStorage();
+        }
+
+        function updateFrameDuration(index, duration) {
+            if (!state.currentAnimation) return;
+            state.animations[state.currentAnimation].frames[index].duration = parseFloat(duration);
+            saveToLocalStorage();
+        }
+
+        function moveFrame(fromIndex, toIndex) {
+            if (!state.currentAnimation) return;
+            const frames = state.animations[state.currentAnimation].frames;
+            const [frame] = frames.splice(fromIndex, 1);
+            frames.splice(toIndex, 0, frame);
+            updateUI();
+            drawSpriteCanvas();
+            saveToLocalStorage();
+        }
+
+        // Canvas drawing
+        function drawSpriteCanvas() {
+            if (!state.spriteLoaded) return;
+
+            spriteCtx.clearRect(0, 0, spriteCanvas.width, spriteCanvas.height);
+            spriteCtx.drawImage(state.spriteImage, 0, 0);
+
+            // Draw grid in grid mode
+            if (state.mode === 'grid') {
+                drawGrid();
+            }
+
+            // Draw frame overlays
+            if (state.currentAnimation) {
+                const anim = state.animations[state.currentAnimation];
+                spriteCtx.fillStyle = 'rgba(0, 150, 200, 0.3)';
+                spriteCtx.strokeStyle = 'rgba(0, 150, 200, 0.8)';
+                spriteCtx.lineWidth = 2;
+
+                anim.frames.forEach((frame, index) => {
+                    spriteCtx.fillRect(frame.x, frame.y, frame.width, frame.height);
+                    spriteCtx.strokeRect(frame.x, frame.y, frame.width, frame.height);
+
+                    // Draw frame number
+                    spriteCtx.fillStyle = 'white';
+                    spriteCtx.font = '14px sans-serif';
+                    spriteCtx.fillText(index + 1, frame.x + 5, frame.y + 20);
+                    spriteCtx.fillStyle = 'rgba(0, 150, 200, 0.3)';
+                });
+            }
+
+            // Draw current selection
+            if (state.selection.isSelecting) {
+                const x = Math.min(state.selection.startX, state.selection.currentX);
+                const y = Math.min(state.selection.startY, state.selection.currentY);
+                const w = Math.abs(state.selection.currentX - state.selection.startX);
+                const h = Math.abs(state.selection.currentY - state.selection.startY);
+
+                spriteCtx.strokeStyle = 'yellow';
+                spriteCtx.lineWidth = 2;
+                spriteCtx.strokeRect(x, y, w, h);
+                spriteCtx.fillStyle = 'rgba(255, 255, 0, 0.2)';
+                spriteCtx.fillRect(x, y, w, h);
+            }
+        }
+
+        function drawGrid() {
+            const frameWidth = parseInt(document.getElementById('frameWidth').value) || 64;
+            const frameHeight = parseInt(document.getElementById('frameHeight').value) || 64;
+            const offsetX = parseInt(document.getElementById('offsetX').value) || 0;
+            const offsetY = parseInt(document.getElementById('offsetY').value) || 0;
+
+            spriteCtx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+            spriteCtx.lineWidth = 1;
+
+            // Draw vertical lines
+            for (let x = offsetX; x < spriteCanvas.width; x += frameWidth) {
+                spriteCtx.beginPath();
+                spriteCtx.moveTo(x, 0);
+                spriteCtx.lineTo(x, spriteCanvas.height);
+                spriteCtx.stroke();
+            }
+
+            // Draw horizontal lines
+            for (let y = offsetY; y < spriteCanvas.height; y += frameHeight) {
+                spriteCtx.beginPath();
+                spriteCtx.moveTo(0, y);
+                spriteCtx.lineTo(spriteCanvas.width, y);
+                spriteCtx.stroke();
+            }
+        }
+
+        // Mouse events for canvas
+        spriteCanvas.addEventListener('mousedown', (e) => {
+            if (!state.spriteLoaded) return;
+
+            const rect = spriteCanvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+
+            if (state.mode === 'grid') {
+                handleGridClick(x, y);
+            } else {
+                state.selection.isSelecting = true;
+                state.selection.startX = x;
+                state.selection.startY = y;
+                state.selection.currentX = x;
+                state.selection.currentY = y;
+            }
+        });
+
+        spriteCanvas.addEventListener('mousemove', (e) => {
+            if (state.selection.isSelecting && state.mode === 'freeform') {
+                const rect = spriteCanvas.getBoundingClientRect();
+                state.selection.currentX = e.clientX - rect.left;
+                state.selection.currentY = e.clientY - rect.top;
+                drawSpriteCanvas();
+            }
+        });
+
+        spriteCanvas.addEventListener('mouseup', (e) => {
+            if (state.selection.isSelecting && state.mode === 'freeform') {
+                const rect = spriteCanvas.getBoundingClientRect();
+                state.selection.currentX = e.clientX - rect.left;
+                state.selection.currentY = e.clientY - rect.top;
+
+                const x = Math.min(state.selection.startX, state.selection.currentX);
+                const y = Math.min(state.selection.startY, state.selection.currentY);
+                const w = Math.abs(state.selection.currentX - state.selection.startX);
+                const h = Math.abs(state.selection.currentY - state.selection.startY);
+
+                if (w > 5 && h > 5) {
+                    addFrame(Math.round(x), Math.round(y), Math.round(w), Math.round(h));
+                }
+
+                state.selection.isSelecting = false;
+                drawSpriteCanvas();
+            }
+        });
+
+        function handleGridClick(x, y) {
+            const frameWidth = parseInt(document.getElementById('frameWidth').value) || 64;
+            const frameHeight = parseInt(document.getElementById('frameHeight').value) || 64;
+            const offsetX = parseInt(document.getElementById('offsetX').value) || 0;
+            const offsetY = parseInt(document.getElementById('offsetY').value) || 0;
+
+            const col = Math.floor((x - offsetX) / frameWidth);
+            const row = Math.floor((y - offsetY) / frameHeight);
+
+            const frameX = offsetX + col * frameWidth;
+            const frameY = offsetY + row * frameHeight;
+
+            if (frameX >= 0 && frameY >= 0 &&
+                frameX + frameWidth <= spriteCanvas.width &&
+                frameY + frameHeight <= spriteCanvas.height) {
+                addFrame(frameX, frameY, frameWidth, frameHeight);
+            }
+        }
+
+        // Update UI
+        function updateUI() {
+            // Update animation list
+            const animList = document.getElementById('animationList');
+            animList.innerHTML = '';
+
+            Object.keys(state.animations).forEach(name => {
+                const li = document.createElement('li');
+                li.className = 'animation-item' + (name === state.currentAnimation ? ' active' : '');
+
+                const nameSpan = document.createElement('span');
+                nameSpan.className = 'animation-item-name';
+                nameSpan.textContent = name;
+                nameSpan.onclick = () => selectAnimation(name);
+
+                const deleteBtn = document.createElement('button');
+                deleteBtn.className = 'animation-item-delete';
+                deleteBtn.textContent = 'Delete';
+                deleteBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    deleteAnimation(name);
+                };
+
+                li.appendChild(nameSpan);
+                li.appendChild(deleteBtn);
+                animList.appendChild(li);
+            });
+
+            // Update animation config
+            if (state.currentAnimation) {
+                const anim = state.animations[state.currentAnimation];
+                document.getElementById('animationConfig').style.display = 'block';
+                document.getElementById('animationName').value = anim.name;
+                document.getElementById('animationFPS').value = anim.fps;
+                document.getElementById('animationLoop').checked = anim.loop;
+                updateFrameList();
+            } else {
+                document.getElementById('animationConfig').style.display = 'none';
+                document.getElementById('frameListContainer').innerHTML = '<div class="empty-state">Select an animation</div>';
+            }
+        }
+
+        function updateFrameList() {
+            const container = document.getElementById('frameListContainer');
+
+            if (!state.currentAnimation) {
+                container.innerHTML = '<div class="empty-state">Select an animation</div>';
+                return;
+            }
+
+            const anim = state.animations[state.currentAnimation];
+
+            if (anim.frames.length === 0) {
+                container.innerHTML = '<div class="empty-state">No frames yet<br>Click on sprite sheet to add frames</div>';
+                return;
+            }
+
+            container.innerHTML = '<div class="frame-list" id="frameList"></div>';
+            const frameList = document.getElementById('frameList');
+
+            anim.frames.forEach((frame, index) => {
+                const frameDiv = document.createElement('div');
+                frameDiv.className = 'frame-item';
+                frameDiv.draggable = true;
+                frameDiv.dataset.index = index;
+
+                // Thumbnail
+                const canvas = document.createElement('canvas');
+                canvas.className = 'frame-thumbnail';
+                canvas.width = 48;
+                canvas.height = 48;
+                const ctx = canvas.getContext('2d');
+                if (state.spriteLoaded) {
+                    const scale = Math.min(48 / frame.width, 48 / frame.height);
+                    const w = frame.width * scale;
+                    const h = frame.height * scale;
+                    ctx.drawImage(state.spriteImage,
+                        frame.x, frame.y, frame.width, frame.height,
+                        (48 - w) / 2, (48 - h) / 2, w, h);
+                }
+
+                // Info
+                const info = document.createElement('div');
+                info.className = 'frame-info';
+                info.innerHTML = `Frame ${index + 1}<br>${frame.width}×${frame.height} at (${frame.x}, ${frame.y})`;
+
+                // Duration input
+                const durationInput = document.createElement('input');
+                durationInput.type = 'number';
+                durationInput.className = 'frame-duration';
+                durationInput.value = frame.duration;
+                durationInput.min = '10';
+                durationInput.step = '10';
+                durationInput.onchange = () => updateFrameDuration(index, durationInput.value);
+
+                // Delete button
+                const deleteBtn = document.createElement('button');
+                deleteBtn.className = 'frame-delete';
+                deleteBtn.textContent = 'Del';
+                deleteBtn.onclick = () => deleteFrame(index);
+
+                frameDiv.appendChild(canvas);
+                frameDiv.appendChild(info);
+                frameDiv.appendChild(durationInput);
+                frameDiv.appendChild(deleteBtn);
+
+                // Drag and drop
+                frameDiv.addEventListener('dragstart', (e) => {
+                    state.draggedFrame = index;
+                    frameDiv.classList.add('dragging');
+                });
+
+                frameDiv.addEventListener('dragend', () => {
+                    frameDiv.classList.remove('dragging');
+                });
+
+                frameDiv.addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                });
+
+                frameDiv.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    if (state.draggedFrame !== null && state.draggedFrame !== index) {
+                        moveFrame(state.draggedFrame, index);
+                    }
+                });
+
+                frameList.appendChild(frameDiv);
+            });
+        }
+
+        // Preview animation
+        function startPreviewLoop() {
+            function animate(timestamp) {
+                const deltaTime = timestamp - previewState.lastTimestamp;
+                previewState.lastTimestamp = timestamp;
+
+                drawPreview(deltaTime);
+                requestAnimationFrame(animate);
+            }
+            requestAnimationFrame(animate);
+        }
+
+        function drawPreview(deltaTime) {
+            previewCtx.fillStyle = '#000';
+            previewCtx.fillRect(0, 0, previewCanvas.width, previewCanvas.height);
+
+            if (!state.currentAnimation || !state.spriteLoaded) {
+                return;
+            }
+
+            const anim = state.animations[state.currentAnimation];
+            if (anim.frames.length === 0) return;
+
+            // Ensure frame index is valid
+            if (previewState.currentFrame >= anim.frames.length) {
+                previewState.currentFrame = 0;
+            }
+
+            const frame = anim.frames[previewState.currentFrame];
+
+            // Draw centered and scaled
+            const scale = Math.min(
+                previewCanvas.width / frame.width,
+                previewCanvas.height / frame.height,
+                2 // Max scale
+            );
+            const w = frame.width * scale;
+            const h = frame.height * scale;
+            const x = (previewCanvas.width - w) / 2;
+            const y = (previewCanvas.height - h) / 2;
+
+            previewCtx.drawImage(state.spriteImage,
+                frame.x, frame.y, frame.width, frame.height,
+                x, y, w, h);
+
+            // Update frame (only if playing)
+            if (previewState.isPlaying) {
+                previewState.frameTime += deltaTime;
+                if (previewState.frameTime >= frame.duration) {
+                    previewState.frameTime = 0;
+                    previewState.currentFrame++;
+                    if (previewState.currentFrame >= anim.frames.length) {
+                        if (anim.loop) {
+                            previewState.currentFrame = 0;
+                        } else {
+                            previewState.currentFrame = anim.frames.length - 1;
+                            previewState.isPlaying = false;
+                            updatePlayPauseButton();
+                        }
+                    }
+                }
+            }
+
+            // Update info
+            const playStatus = previewState.isPlaying ? 'Playing' : 'Paused';
+            document.getElementById('previewInfo').textContent =
+                `Frame ${previewState.currentFrame + 1}/${anim.frames.length} | ${anim.fps} FPS | ${anim.loop ? 'Loop' : 'Once'} | ${playStatus}`;
+        }
+
+        // Preview controls
+        function reloadPreview() {
+            resetPreviewState();
+            previewState.isPlaying = true;
+            updatePlayPauseButton();
+        }
+
+        function togglePlayPreview() {
+            previewState.isPlaying = !previewState.isPlaying;
+            updatePlayPauseButton();
+        }
+
+        function stopPreview() {
+            resetPreviewState();
+            previewState.isPlaying = false;
+            updatePlayPauseButton();
+        }
+
+        function updatePlayPauseButton() {
+            const btn = document.getElementById('playPauseBtn');
+            btn.textContent = previewState.isPlaying ? 'Pause' : 'Play';
+        }
+
+        // Import/Export
+        function exportToJSON() {
+            const data = {
+                animations: state.animations,
+                spriteSheet: state.spriteImage ? state.spriteImage.src : null
+            };
+
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'animations.json';
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        function importFromJSON() {
+            document.getElementById('jsonFileInput').click();
+        }
+
+        function handleJSONFile(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const data = JSON.parse(e.target.result);
+                    state.animations = data.animations || {};
+
+                    if (data.spriteSheet) {
+                        loadSpriteImage(data.spriteSheet);
+                    }
+
+                    state.currentAnimation = null;
+                    updateUI();
+                    drawSpriteCanvas();
+                    saveToLocalStorage();
+                } catch (err) {
+                    alert('Failed to parse JSON: ' + err.message);
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        // LocalStorage
+        function saveToLocalStorage() {
+            const data = {
+                animations: state.animations,
+                spriteSheet: state.spriteImage ? state.spriteImage.src : null
+            };
+            localStorage.setItem('spriteAnimatorData', JSON.stringify(data));
+        }
+
+        function loadFromLocalStorage() {
+            const data = localStorage.getItem('spriteAnimatorData');
+            if (data) {
+                try {
+                    const parsed = JSON.parse(data);
+                    state.animations = parsed.animations || {};
+                    if (parsed.spriteSheet) {
+                        loadSpriteImage(parsed.spriteSheet);
+                    }
+                } catch (err) {
+                    console.error('Failed to load from localStorage:', err);
+                }
+            }
+        }
+
+        // Update grid when inputs change
+        document.getElementById('frameWidth').addEventListener('input', drawSpriteCanvas);
+        document.getElementById('frameHeight').addEventListener('input', drawSpriteCanvas);
+        document.getElementById('offsetX').addEventListener('input', drawSpriteCanvas);
+        document.getElementById('offsetY').addEventListener('input', drawSpriteCanvas);
+    </script>
+</body>
+</html>
