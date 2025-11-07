@@ -264,7 +264,7 @@
         }
 
         .animation-config {
-            margin-top: 15px;
+            margin: 15px 0 10px 0;
             padding: 15px;
             background: #1a1a1a;
             border-radius: 4px;
@@ -278,7 +278,7 @@
         }
 
         .config-row label {
-            min-width: 80px;
+            min-width: 50px;
         }
 
         .checkbox-wrapper {
@@ -313,6 +313,18 @@
             <button data-action="zoom-out">Zoom Out (-)</button>
             <button data-action="reset-zoom">Reset Zoom (0)</button>
             <span id="zoomLevel" style="color: #aaa; font-size: 12px; min-width: 60px;">100%</span>
+
+            <div class="divider"></div>
+
+            <div class="control-group">
+                <label>Editor BG:</label>
+                <input type="color" id="editorBgColor" value="#1a1a1a">
+            </div>
+
+            <div class="control-group">
+                <label>Preview BG:</label>
+                <input type="color" id="previewBgColor" value="#000000">
+            </div>
 
             <div class="divider"></div>
 

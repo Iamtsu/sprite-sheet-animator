@@ -14,6 +14,8 @@ class Editor {
             currentAnimation: null,
             draggedFrame: null,
             selectedFrameIndex: null,
+            editorBgColor: '#1a1a1a',
+            previewBgColor: '#000000',
             selection: {
                 isSelecting: false,
                 startX: 0,
@@ -186,6 +188,10 @@ class Editor {
         document.querySelector('button[data-action="reload-preview"]')?.addEventListener('click', () => this.reloadPreview());
         document.querySelector('button[data-action="toggle-play"]')?.addEventListener('click', () => this.togglePlayPreview());
         document.querySelector('button[data-action="stop-preview"]')?.addEventListener('click', () => this.stopPreview());
+
+        // Background color controls
+        document.getElementById('editorBgColor')?.addEventListener('input', (e) => this.updateEditorBgColor(e.target.value));
+        document.getElementById('previewBgColor')?.addEventListener('input', (e) => this.updatePreviewBgColor(e.target.value));
     }
 
     // Sprite loading
@@ -677,8 +683,9 @@ class Editor {
     drawSpriteCanvas() {
         if (!this.state.spriteLoaded) return;
 
-        // Clear the entire canvas
-        this.spriteCtx.clearRect(0, 0, this.spriteCanvas.width, this.spriteCanvas.height);
+        // Fill canvas with background color
+        this.spriteCtx.fillStyle = this.state.editorBgColor;
+        this.spriteCtx.fillRect(0, 0, this.spriteCanvas.width, this.spriteCanvas.height);
 
         // Save the context state
         this.spriteCtx.save();
@@ -1181,8 +1188,8 @@ class Editor {
     }
 
     drawPreview(deltaTime) {
-        // Clear canvas
-        this.previewCtx.fillStyle = '#000';
+        // Fill canvas with background color
+        this.previewCtx.fillStyle = this.state.previewBgColor;
         this.previewCtx.fillRect(0, 0, this.previewCanvas.width, this.previewCanvas.height);
 
         if (!this.state.currentAnimation || !this.state.spriteLoaded || !this.animator) {
@@ -1261,11 +1268,25 @@ class Editor {
         btn.textContent = this.previewState.isPlaying ? 'Pause' : 'Play';
     }
 
+    // Background color controls
+    updateEditorBgColor(color) {
+        this.state.editorBgColor = color;
+        this.drawSpriteCanvas();
+        this.saveToLocalStorage();
+    }
+
+    updatePreviewBgColor(color) {
+        this.state.previewBgColor = color;
+        this.saveToLocalStorage();
+    }
+
     // Import/Export
     exportToJSON() {
         const data = {
             animations: this.state.animations,
-            spriteSheet: this.state.spriteImage ? this.state.spriteImage.src : null
+            spriteSheet: this.state.spriteImage ? this.state.spriteImage.src : null,
+            editorBgColor: this.state.editorBgColor,
+            previewBgColor: this.state.previewBgColor
         };
 
         const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -1295,6 +1316,16 @@ class Editor {
                     this.loadSpriteImage(data.spriteSheet);
                 }
 
+                // Load background colors
+                if (data.editorBgColor) {
+                    this.state.editorBgColor = data.editorBgColor;
+                    document.getElementById('editorBgColor').value = data.editorBgColor;
+                }
+                if (data.previewBgColor) {
+                    this.state.previewBgColor = data.previewBgColor;
+                    document.getElementById('previewBgColor').value = data.previewBgColor;
+                }
+
                 this.state.currentAnimation = null;
                 this.updateUI();
                 this.drawSpriteCanvas();
@@ -1310,7 +1341,9 @@ class Editor {
     saveToLocalStorage() {
         const data = {
             animations: this.state.animations,
-            spriteSheet: this.state.spriteImage ? this.state.spriteImage.src : null
+            spriteSheet: this.state.spriteImage ? this.state.spriteImage.src : null,
+            editorBgColor: this.state.editorBgColor,
+            previewBgColor: this.state.previewBgColor
         };
         localStorage.setItem('spriteAnimatorData', JSON.stringify(data));
     }
@@ -1323,6 +1356,15 @@ class Editor {
                 this.state.animations = parsed.animations || {};
                 if (parsed.spriteSheet) {
                     this.loadSpriteImage(parsed.spriteSheet);
+                }
+                // Load background colors
+                if (parsed.editorBgColor) {
+                    this.state.editorBgColor = parsed.editorBgColor;
+                    document.getElementById('editorBgColor').value = parsed.editorBgColor;
+                }
+                if (parsed.previewBgColor) {
+                    this.state.previewBgColor = parsed.previewBgColor;
+                    document.getElementById('previewBgColor').value = parsed.previewBgColor;
                 }
             } catch (err) {
                 console.error('Failed to load from localStorage:', err);
