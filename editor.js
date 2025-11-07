@@ -134,6 +134,7 @@ class Editor {
         window.addEventListener('resize', () => {
             this.resizeSpriteCanvas();
         });
+
         // Sprite canvas mouse events
         this.spriteCanvas.addEventListener('mousedown', (e) => this.handleCanvasMouseDown(e));
         this.spriteCanvas.addEventListener('mousemove', (e) => this.handleCanvasMouseMove(e));
@@ -161,6 +162,30 @@ class Editor {
                 this.resetZoom();
             }
         });
+
+        // Toolbar button event listeners
+        document.querySelector('button[data-action="load-sprite"]')?.addEventListener('click', () => this.loadSpriteFile());
+        document.getElementById('spriteFileInput')?.addEventListener('change', (e) => this.handleSpriteFile(e));
+        document.querySelector('button[data-action="load-url"]')?.addEventListener('click', () => this.loadSpriteUrl());
+        document.querySelector('button[data-action="zoom-in"]')?.addEventListener('click', () => this.zoomIn());
+        document.querySelector('button[data-action="zoom-out"]')?.addEventListener('click', () => this.zoomOut());
+        document.querySelector('button[data-action="reset-zoom"]')?.addEventListener('click', () => this.resetZoom());
+        document.querySelector('button[data-action="export-json"]')?.addEventListener('click', () => this.exportToJSON());
+        document.querySelector('button[data-action="import-json"]')?.addEventListener('click', () => this.importFromJSON());
+        document.getElementById('jsonFileInput')?.addEventListener('change', (e) => this.handleJSONFile(e));
+
+        // Sidebar button
+        document.querySelector('button[data-action="new-animation"]')?.addEventListener('click', () => this.createNewAnimation());
+
+        // Animation config inputs
+        document.getElementById('animationName')?.addEventListener('input', () => this.updateAnimationName());
+        document.getElementById('animationFPS')?.addEventListener('input', () => this.updateAnimationConfig());
+        document.getElementById('animationLoop')?.addEventListener('change', () => this.updateAnimationConfig());
+
+        // Preview controls
+        document.querySelector('button[data-action="reload-preview"]')?.addEventListener('click', () => this.reloadPreview());
+        document.querySelector('button[data-action="toggle-play"]')?.addEventListener('click', () => this.togglePlayPreview());
+        document.querySelector('button[data-action="stop-preview"]')?.addEventListener('click', () => this.stopPreview());
     }
 
     // Sprite loading

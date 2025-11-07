@@ -298,33 +298,33 @@
     <div class="container">
         <!-- Toolbar -->
         <div class="toolbar">
-            <button onclick="editor.loadSpriteFile()">Load Sprite Sheet</button>
-            <input type="file" id="spriteFileInput" accept="image/*" onchange="editor.handleSpriteFile(event)">
+            <button data-action="load-sprite">Load Sprite Sheet</button>
+            <input type="file" id="spriteFileInput" accept="image/*">
 
             <div class="control-group">
                 <label>URL:</label>
                 <input type="url" id="spriteUrl" placeholder="Image URL" style="width: 200px;">
-                <button onclick="editor.loadSpriteUrl()">Load</button>
+                <button data-action="load-url">Load</button>
             </div>
 
             <div class="divider"></div>
 
-            <button onclick="editor.zoomIn()">Zoom In (+)</button>
-            <button onclick="editor.zoomOut()">Zoom Out (-)</button>
-            <button onclick="editor.resetZoom()">Reset Zoom (0)</button>
+            <button data-action="zoom-in">Zoom In (+)</button>
+            <button data-action="zoom-out">Zoom Out (-)</button>
+            <button data-action="reset-zoom">Reset Zoom (0)</button>
             <span id="zoomLevel" style="color: #aaa; font-size: 12px; min-width: 60px;">100%</span>
 
             <div class="divider"></div>
 
-            <button onclick="editor.exportToJSON()">Export JSON</button>
-            <button onclick="editor.importFromJSON()">Import JSON</button>
-            <input type="file" id="jsonFileInput" accept=".json" onchange="editor.handleJSONFile(event)">
+            <button data-action="export-json">Export JSON</button>
+            <button data-action="import-json">Import JSON</button>
+            <input type="file" id="jsonFileInput" accept=".json">
         </div>
 
         <!-- Left Sidebar - Animation List -->
         <div class="sidebar">
             <h3>Animations</h3>
-            <button onclick="editor.createNewAnimation()" style="width: 100%; margin-bottom: 15px;">+ New Animation</button>
+            <button data-action="new-animation" style="width: 100%; margin-bottom: 15px;">+ New Animation</button>
             <ul class="animation-list" id="animationList"></ul>
         </div>
 
@@ -339,16 +339,16 @@
             <div id="animationConfig" class="animation-config" style="display: none;">
                 <div class="config-row">
                     <label>Name:</label>
-                    <input type="text" id="animationName" oninput="editor.updateAnimationName()">
+                    <input type="text" id="animationName">
                 </div>
                 <div class="config-row">
                     <label>FPS:</label>
-                    <input type="number" id="animationFPS" value="10" min="1" max="60" oninput="editor.updateAnimationConfig()">
+                    <input type="number" id="animationFPS" value="10" min="1" max="60">
                 </div>
                 <div class="config-row">
                     <label>Loop:</label>
                     <div class="checkbox-wrapper">
-                        <input type="checkbox" id="animationLoop" checked onchange="editor.updateAnimationConfig()">
+                        <input type="checkbox" id="animationLoop" checked>
                     </div>
                 </div>
             </div>
@@ -363,9 +363,9 @@
                     <canvas id="previewCanvas" width="128" height="128"></canvas>
                 </div>
                 <div style="display: flex; flex-direction: column; gap: 5px;">
-                    <button onclick="editor.reloadPreview()" style="padding: 6px 12px; font-size: 12px; min-width: 70px;">Reload</button>
-                    <button id="playPauseBtn" onclick="editor.togglePlayPreview()" style="padding: 6px 12px; font-size: 12px; min-width: 70px;">Pause</button>
-                    <button onclick="editor.stopPreview()" style="padding: 6px 12px; font-size: 12px; min-width: 70px;">Stop</button>
+                    <button data-action="reload-preview" style="padding: 6px 12px; font-size: 12px; min-width: 70px;">Reload</button>
+                    <button id="playPauseBtn" data-action="toggle-play" style="padding: 6px 12px; font-size: 12px; min-width: 70px;">Pause</button>
+                    <button data-action="stop-preview" style="padding: 6px 12px; font-size: 12px; min-width: 70px;">Stop</button>
                 </div>
             </div>
             <div style="flex: 1;">
@@ -378,13 +378,9 @@
         import { Editor } from './editor.js';
 
         // Initialize the editor when DOM is ready
-        let editor;
         document.addEventListener('DOMContentLoaded', () => {
-            editor = new Editor();
+            new Editor();
         });
-
-        // Make editor available globally for inline event handlers
-        window.editor = editor;
     </script>
 </body>
 </html>
