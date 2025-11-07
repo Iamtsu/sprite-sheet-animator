@@ -136,23 +136,6 @@
             gap: 8px;
         }
 
-        .mode-toggle {
-            display: flex;
-            gap: 2px;
-            background: #1a1a1a;
-            padding: 2px;
-            border-radius: 4px;
-        }
-
-        .mode-toggle button {
-            background: transparent;
-            padding: 6px 12px;
-        }
-
-        .mode-toggle button.active {
-            background: #0d7377;
-        }
-
         #spriteCanvas {
             border: 2px solid #444;
             cursor: crosshair;
@@ -202,6 +185,7 @@
 
         .frame-item {
             background: #1a1a1a;
+            border: 2px solid transparent;
             border-radius: 4px;
             padding: 10px;
             display: flex;
@@ -212,6 +196,11 @@
 
         .frame-item.dragging {
             opacity: 0.5;
+        }
+
+        .frame-item.selected {
+            background: #0d7377;
+            border: 2px solid #0a5c5f;
         }
 
         .frame-thumbnail {
@@ -317,23 +306,6 @@
 
             <div class="divider"></div>
 
-            <div class="mode-toggle">
-                <button id="gridModeBtn" class="active" onclick="setMode('grid')">Grid</button>
-                <button id="freeformModeBtn" onclick="setMode('freeform')">Freeform</button>
-            </div>
-
-            <div class="control-group" id="gridControls">
-                <label>Frame:</label>
-                <input type="number" id="frameWidth" value="64" min="1" style="width: 60px;">
-                <span>×</span>
-                <input type="number" id="frameHeight" value="64" min="1" style="width: 60px;">
-                <label>Offset:</label>
-                <input type="number" id="offsetX" value="0" min="0" style="width: 50px;">
-                <input type="number" id="offsetY" value="0" min="0" style="width: 50px;">
-            </div>
-
-            <div class="divider"></div>
-
             <button onclick="exportToJSON()">Export JSON</button>
             <button onclick="importFromJSON()">Import JSON</button>
             <input type="file" id="jsonFileInput" accept=".json" onchange="handleJSONFile(event)">
@@ -397,16 +369,23 @@
         let state = {
             spriteImage: null,
             spriteLoaded: false,
-            mode: 'grid',
             animations: {},
             currentAnimation: null,
             draggedFrame: null,
+            selectedFrameIndex: null,
             selection: {
                 isSelecting: false,
                 startX: 0,
                 startY: 0,
                 currentX: 0,
                 currentY: 0
+            },
+            resize: {
+                isResizing: false,
+                handle: null, // 'nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'
+                startX: 0,
+                startY: 0,
+                originalFrame: null
             }
         };
 
@@ -468,15 +447,6 @@
             img.src = src;
         }
 
-        // Mode switching
-        function setMode(mode) {
-            state.mode = mode;
-            document.getElementById('gridModeBtn').classList.toggle('active', mode === 'grid');
-            document.getElementById('freeformModeBtn').classList.toggle('active', mode === 'freeform');
-            document.getElementById('gridControls').style.display = mode === 'grid' ? 'flex' : 'none';
-            drawSpriteCanvas();
-        }
-
         // Animation management
         function createNewAnimation() {
             const name = prompt('Animation name:');
@@ -500,6 +470,7 @@
 
         function selectAnimation(name) {
             state.currentAnimation = name;
+            state.selectedFrameIndex = null;
             resetPreviewState();
             previewState.isPlaying = true;
             updatePlayPauseButton();
@@ -574,6 +545,13 @@
             if (previewState.currentFrame >= index) {
                 resetPreviewState();
             }
+            // Clear selection if deleted frame was selected
+            if (state.selectedFrameIndex === index) {
+                state.selectedFrameIndex = null;
+            } else if (state.selectedFrameIndex > index) {
+                // Adjust selected index if we deleted a frame before it
+                state.selectedFrameIndex--;
+            }
             updateUI();
             drawSpriteCanvas();
             saveToLocalStorage();
@@ -590,9 +568,67 @@
             const frames = state.animations[state.currentAnimation].frames;
             const [frame] = frames.splice(fromIndex, 1);
             frames.splice(toIndex, 0, frame);
+
+            // Update selected index if the selected frame was moved
+            if (state.selectedFrameIndex === fromIndex) {
+                state.selectedFrameIndex = toIndex;
+            } else if (state.selectedFrameIndex > fromIndex && state.selectedFrameIndex <= toIndex) {
+                state.selectedFrameIndex--;
+            } else if (state.selectedFrameIndex < fromIndex && state.selectedFrameIndex >= toIndex) {
+                state.selectedFrameIndex++;
+            }
+
             updateUI();
             drawSpriteCanvas();
             saveToLocalStorage();
+        }
+
+        // Helper function to draw resize handles
+        function drawResizeHandles(frame) {
+            const handleSize = 8;
+            const handles = getResizeHandles(frame, handleSize);
+
+            spriteCtx.fillStyle = '#0d7377';
+            spriteCtx.strokeStyle = 'white';
+            spriteCtx.lineWidth = 1;
+
+            Object.values(handles).forEach(handle => {
+                spriteCtx.fillRect(handle.x, handle.y, handleSize, handleSize);
+                spriteCtx.strokeRect(handle.x, handle.y, handleSize, handleSize);
+            });
+        }
+
+        // Get resize handle positions
+        function getResizeHandles(frame, handleSize) {
+            const hs = handleSize / 2;
+            return {
+                nw: { x: frame.x - hs, y: frame.y - hs },
+                n:  { x: frame.x + frame.width / 2 - hs, y: frame.y - hs },
+                ne: { x: frame.x + frame.width - hs, y: frame.y - hs },
+                e:  { x: frame.x + frame.width - hs, y: frame.y + frame.height / 2 - hs },
+                se: { x: frame.x + frame.width - hs, y: frame.y + frame.height - hs },
+                s:  { x: frame.x + frame.width / 2 - hs, y: frame.y + frame.height - hs },
+                sw: { x: frame.x - hs, y: frame.y + frame.height - hs },
+                w:  { x: frame.x - hs, y: frame.y + frame.height / 2 - hs }
+            };
+        }
+
+        // Check if point is on a resize handle
+        function getHandleAtPoint(frame, x, y, handleSize = 8) {
+            const handles = getResizeHandles(frame, handleSize);
+            for (let [name, handle] of Object.entries(handles)) {
+                if (x >= handle.x && x <= handle.x + handleSize &&
+                    y >= handle.y && y <= handle.y + handleSize) {
+                    return name;
+                }
+            }
+            return null;
+        }
+
+        // Check if point is inside a frame
+        function isPointInFrame(frame, x, y) {
+            return x >= frame.x && x <= frame.x + frame.width &&
+                   y >= frame.y && y <= frame.y + frame.height;
         }
 
         // Canvas drawing
@@ -602,28 +638,31 @@
             spriteCtx.clearRect(0, 0, spriteCanvas.width, spriteCanvas.height);
             spriteCtx.drawImage(state.spriteImage, 0, 0);
 
-            // Draw grid in grid mode
-            if (state.mode === 'grid') {
-                drawGrid();
-            }
-
             // Draw frame overlays
             if (state.currentAnimation) {
                 const anim = state.animations[state.currentAnimation];
-                spriteCtx.fillStyle = 'rgba(0, 150, 200, 0.3)';
-                spriteCtx.strokeStyle = 'rgba(0, 150, 200, 0.8)';
-                spriteCtx.lineWidth = 2;
 
                 anim.frames.forEach((frame, index) => {
+                    const isSelected = index === state.selectedFrameIndex;
+
+                    // Draw frame overlay
+                    spriteCtx.fillStyle = isSelected ? 'rgba(13, 115, 119, 0.3)' : 'rgba(0, 150, 200, 0.3)';
+                    spriteCtx.strokeStyle = isSelected ? 'rgba(13, 115, 119, 1)' : 'rgba(0, 150, 200, 0.8)';
+                    spriteCtx.lineWidth = isSelected ? 3 : 2;
+
                     spriteCtx.fillRect(frame.x, frame.y, frame.width, frame.height);
                     spriteCtx.strokeRect(frame.x, frame.y, frame.width, frame.height);
 
                     // Draw frame number
                     spriteCtx.fillStyle = 'white';
-                    spriteCtx.font = '14px sans-serif';
+                    spriteCtx.font = isSelected ? 'bold 14px sans-serif' : '14px sans-serif';
                     spriteCtx.fillText(index + 1, frame.x + 5, frame.y + 20);
-                    spriteCtx.fillStyle = 'rgba(0, 150, 200, 0.3)';
                 });
+
+                // Draw resize handles for selected frame
+                if (state.selectedFrameIndex !== null && state.selectedFrameIndex < anim.frames.length) {
+                    drawResizeHandles(anim.frames[state.selectedFrameIndex]);
+                }
             }
 
             // Draw current selection
@@ -641,30 +680,23 @@
             }
         }
 
-        function drawGrid() {
-            const frameWidth = parseInt(document.getElementById('frameWidth').value) || 64;
-            const frameHeight = parseInt(document.getElementById('frameHeight').value) || 64;
-            const offsetX = parseInt(document.getElementById('offsetX').value) || 0;
-            const offsetY = parseInt(document.getElementById('offsetY').value) || 0;
+        // Select a frame
+        function selectFrame(index) {
+            state.selectedFrameIndex = index;
+            updateUI();
+            drawSpriteCanvas();
+        }
 
-            spriteCtx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
-            spriteCtx.lineWidth = 1;
-
-            // Draw vertical lines
-            for (let x = offsetX; x < spriteCanvas.width; x += frameWidth) {
-                spriteCtx.beginPath();
-                spriteCtx.moveTo(x, 0);
-                spriteCtx.lineTo(x, spriteCanvas.height);
-                spriteCtx.stroke();
-            }
-
-            // Draw horizontal lines
-            for (let y = offsetY; y < spriteCanvas.height; y += frameHeight) {
-                spriteCtx.beginPath();
-                spriteCtx.moveTo(0, y);
-                spriteCtx.lineTo(spriteCanvas.width, y);
-                spriteCtx.stroke();
-            }
+        // Update frame dimensions
+        function updateFrame(index, x, y, width, height) {
+            if (!state.currentAnimation) return;
+            const frame = state.animations[state.currentAnimation].frames[index];
+            frame.x = Math.round(x);
+            frame.y = Math.round(y);
+            frame.width = Math.round(width);
+            frame.height = Math.round(height);
+            updateUI();
+            saveToLocalStorage();
         }
 
         // Mouse events for canvas
@@ -675,28 +707,132 @@
             const x = e.clientX - rect.left;
             const y = e.clientY - rect.top;
 
-            if (state.mode === 'grid') {
-                handleGridClick(x, y);
-            } else {
-                state.selection.isSelecting = true;
-                state.selection.startX = x;
-                state.selection.startY = y;
-                state.selection.currentX = x;
-                state.selection.currentY = y;
+            // Check if clicking on a resize handle of the selected frame
+            if (state.currentAnimation && state.selectedFrameIndex !== null) {
+                const anim = state.animations[state.currentAnimation];
+                const selectedFrame = anim.frames[state.selectedFrameIndex];
+                if (selectedFrame) {
+                    const handle = getHandleAtPoint(selectedFrame, x, y);
+                    if (handle) {
+                        state.resize.isResizing = true;
+                        state.resize.handle = handle;
+                        state.resize.startX = x;
+                        state.resize.startY = y;
+                        state.resize.originalFrame = { ...selectedFrame };
+                        return;
+                    }
+                }
             }
+
+            // Check if clicking on any frame
+            if (state.currentAnimation) {
+                const anim = state.animations[state.currentAnimation];
+                // Check frames in reverse order (top to bottom in display)
+                for (let i = anim.frames.length - 1; i >= 0; i--) {
+                    if (isPointInFrame(anim.frames[i], x, y)) {
+                        selectFrame(i);
+                        return;
+                    }
+                }
+            }
+
+            // Otherwise, start new selection
+            state.selectedFrameIndex = null;
+            state.selection.isSelecting = true;
+            state.selection.startX = x;
+            state.selection.startY = y;
+            state.selection.currentX = x;
+            state.selection.currentY = y;
+            drawSpriteCanvas();
         });
 
         spriteCanvas.addEventListener('mousemove', (e) => {
-            if (state.selection.isSelecting && state.mode === 'freeform') {
-                const rect = spriteCanvas.getBoundingClientRect();
-                state.selection.currentX = e.clientX - rect.left;
-                state.selection.currentY = e.clientY - rect.top;
+            const rect = spriteCanvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+
+            // Handle resizing
+            if (state.resize.isResizing && state.selectedFrameIndex !== null) {
+                const dx = x - state.resize.startX;
+                const dy = y - state.resize.startY;
+                const orig = state.resize.originalFrame;
+                const handle = state.resize.handle;
+
+                let newX = orig.x;
+                let newY = orig.y;
+                let newWidth = orig.width;
+                let newHeight = orig.height;
+
+                // Calculate new dimensions based on handle
+                if (handle.includes('n')) {
+                    newY = orig.y + dy;
+                    newHeight = orig.height - dy;
+                }
+                if (handle.includes('s')) {
+                    newHeight = orig.height + dy;
+                }
+                if (handle.includes('w')) {
+                    newX = orig.x + dx;
+                    newWidth = orig.width - dx;
+                }
+                if (handle.includes('e')) {
+                    newWidth = orig.width + dx;
+                }
+
+                // Enforce minimum size
+                if (newWidth < 5) {
+                    newWidth = 5;
+                    if (handle.includes('w')) newX = orig.x + orig.width - 5;
+                }
+                if (newHeight < 5) {
+                    newHeight = 5;
+                    if (handle.includes('n')) newY = orig.y + orig.height - 5;
+                }
+
+                updateFrame(state.selectedFrameIndex, newX, newY, newWidth, newHeight);
+                drawSpriteCanvas();
+                return;
+            }
+
+            // Handle new frame selection
+            if (state.selection.isSelecting) {
+                state.selection.currentX = x;
+                state.selection.currentY = y;
                 drawSpriteCanvas();
             }
+
+            // Update cursor based on hover
+            if (state.currentAnimation && state.selectedFrameIndex !== null) {
+                const anim = state.animations[state.currentAnimation];
+                const selectedFrame = anim.frames[state.selectedFrameIndex];
+                if (selectedFrame) {
+                    const handle = getHandleAtPoint(selectedFrame, x, y);
+                    if (handle) {
+                        const cursors = {
+                            'nw': 'nwse-resize', 'se': 'nwse-resize',
+                            'ne': 'nesw-resize', 'sw': 'nesw-resize',
+                            'n': 'ns-resize', 's': 'ns-resize',
+                            'e': 'ew-resize', 'w': 'ew-resize'
+                        };
+                        spriteCanvas.style.cursor = cursors[handle];
+                        return;
+                    }
+                }
+            }
+            spriteCanvas.style.cursor = 'crosshair';
         });
 
         spriteCanvas.addEventListener('mouseup', (e) => {
-            if (state.selection.isSelecting && state.mode === 'freeform') {
+            // End resizing
+            if (state.resize.isResizing) {
+                state.resize.isResizing = false;
+                state.resize.handle = null;
+                state.resize.originalFrame = null;
+                return;
+            }
+
+            // End new frame selection
+            if (state.selection.isSelecting) {
                 const rect = spriteCanvas.getBoundingClientRect();
                 state.selection.currentX = e.clientX - rect.left;
                 state.selection.currentY = e.clientY - rect.top;
@@ -714,25 +850,6 @@
                 drawSpriteCanvas();
             }
         });
-
-        function handleGridClick(x, y) {
-            const frameWidth = parseInt(document.getElementById('frameWidth').value) || 64;
-            const frameHeight = parseInt(document.getElementById('frameHeight').value) || 64;
-            const offsetX = parseInt(document.getElementById('offsetX').value) || 0;
-            const offsetY = parseInt(document.getElementById('offsetY').value) || 0;
-
-            const col = Math.floor((x - offsetX) / frameWidth);
-            const row = Math.floor((y - offsetY) / frameHeight);
-
-            const frameX = offsetX + col * frameWidth;
-            const frameY = offsetY + row * frameHeight;
-
-            if (frameX >= 0 && frameY >= 0 &&
-                frameX + frameWidth <= spriteCanvas.width &&
-                frameY + frameHeight <= spriteCanvas.height) {
-                addFrame(frameX, frameY, frameWidth, frameHeight);
-            }
-        }
 
         // Update UI
         function updateUI() {
@@ -796,9 +913,18 @@
 
             anim.frames.forEach((frame, index) => {
                 const frameDiv = document.createElement('div');
-                frameDiv.className = 'frame-item';
+                frameDiv.className = 'frame-item' + (index === state.selectedFrameIndex ? ' selected' : '');
                 frameDiv.draggable = true;
                 frameDiv.dataset.index = index;
+
+                // Click to select frame
+                frameDiv.addEventListener('click', (e) => {
+                    // Don't select if clicking on delete button or duration input
+                    if (e.target.tagName === 'BUTTON' || e.target.tagName === 'INPUT') {
+                        return;
+                    }
+                    selectFrame(index);
+                });
 
                 // Thumbnail
                 const canvas = document.createElement('canvas');
@@ -833,7 +959,10 @@
                 const deleteBtn = document.createElement('button');
                 deleteBtn.className = 'frame-delete';
                 deleteBtn.textContent = 'Del';
-                deleteBtn.onclick = () => deleteFrame(index);
+                deleteBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    deleteFrame(index);
+                };
 
                 frameDiv.appendChild(canvas);
                 frameDiv.appendChild(info);
@@ -1026,11 +1155,6 @@
             }
         }
 
-        // Update grid when inputs change
-        document.getElementById('frameWidth').addEventListener('input', drawSpriteCanvas);
-        document.getElementById('frameHeight').addEventListener('input', drawSpriteCanvas);
-        document.getElementById('offsetX').addEventListener('input', drawSpriteCanvas);
-        document.getElementById('offsetY').addEventListener('input', drawSpriteCanvas);
     </script>
 </body>
 </html>
