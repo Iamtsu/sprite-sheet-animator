@@ -563,7 +563,7 @@ class Editor {
 
         // Validate click point is within image bounds
         if (startX < 0 || startX >= img.width || startY < 0 || startY >= img.height) {
-            alert('Click point is outside the sprite image');
+            // Silently ignore clicks outside of image bounds
             return;
         }
 
