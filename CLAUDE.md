@@ -42,6 +42,34 @@ function gameLoop(timestamp) {
 - `animator.js` - Main animator class (standalone, no dependencies)
 - `resources/` - Contains sprite sheet assets (e.g., `animated_character_1.png`)
 - `index.html` - Currently empty, intended as demo/test page
+- `release.sh` - Automated release script that uses semantic commit analysis
+
+### Commit Message Convention
+
+This project uses **semantic commit messages** for automated versioning. The release script analyzes commit messages to determine version bumps:
+
+**Commit Prefixes:**
+- `feat:` - New feature for the user (triggers MINOR version bump)
+- `fix:` - Bug fix for the user (triggers PATCH version bump)
+- `docs:` - Changes to documentation (PATCH bump)
+- `style:` - Formatting, missing semicolons, etc; no production code change (PATCH bump)
+- `refactor:` - Refactoring production code (PATCH bump)
+- `test:` - Adding/refactoring tests; no production code change (PATCH bump)
+- `chore:` - Updating build tasks, dependencies, etc; no production code change (PATCH bump)
+- `BREAKING CHANGE:` or `!` suffix - Breaking changes (triggers MAJOR version bump)
+
+**Examples:**
+```
+feat: Add new animation blending mode
+fix: Correct frame timing calculation for variable framerates
+docs: Update README with installation instructions
+refactor: Simplify frame coordinate calculation
+feat!: Change animation API to use duration instead of frameRate (breaking)
+```
+
+**Release Process:**
+Run `./release.sh` to automatically bump version, merge to main, and trigger CI/CD builds.
+Use `./release.sh --dry-run` to preview the version bump without making changes.
 
 ### Testing the Library
 Since there's no build system or test framework, test changes by:
