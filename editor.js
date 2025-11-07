@@ -1,3 +1,5 @@
+import { SpriteSheetAnimator } from './animator.js';
+
 /**
  * Sprite Sheet Animation Editor
  * A visual editor for creating frame-based sprite animations
@@ -42,6 +44,9 @@ class Editor {
             lastTimestamp: 0,
             isPlaying: true
         };
+
+        // SpriteSheetAnimator instance for preview
+        this.animator = null;
 
         // Zoom and pan state
         this.zoomState = {
@@ -129,6 +134,13 @@ class Editor {
             this.spriteCanvas.width = img.width;
             this.spriteCanvas.height = img.height;
             this.drawSpriteCanvas();
+
+            // Create animator instance with the loaded sprite
+            this.animator = new SpriteSheetAnimator(src);
+            this.animator.waitForLoad().then(() => {
+                this.syncAnimatorState();
+            });
+
             this.saveToLocalStorage();
         };
         img.onerror = () => {
@@ -204,6 +216,7 @@ class Editor {
         this.resetPreviewState();
         this.previewState.isPlaying = true;
         this.updatePlayPauseButton();
+        this.syncAnimatorState();
         this.updateUI();
         this.drawSpriteCanvas();
     }
@@ -244,7 +257,29 @@ class Editor {
         this.resetPreviewState();
         this.previewState.isPlaying = true;
         this.updatePlayPauseButton();
+        this.syncAnimatorState();
         this.saveToLocalStorage();
+    }
+
+    // Sync the current animation to the SpriteSheetAnimator
+    syncAnimatorState() {
+        if (!this.animator || !this.state.currentAnimation) return;
+
+        const anim = this.state.animations[this.state.currentAnimation];
+        if (!anim || anim.frames.length === 0) return;
+
+        // Add or update the animation in the animator
+        this.animator.addAnimation(this.state.currentAnimation, {
+            frames: anim.frames,
+            fps: anim.fps,
+            loop: anim.loop
+        });
+
+        // Play the animation
+        this.animator.play(this.state.currentAnimation, true);
+        if (!this.previewState.isPlaying) {
+            this.animator.pause();
+        }
     }
 
     // Frame management
@@ -263,6 +298,7 @@ class Editor {
             duration: 1000 / anim.fps
         });
 
+        this.syncAnimatorState();
         this.updateUI();
         this.drawSpriteCanvas();
         this.saveToLocalStorage();
@@ -284,6 +320,7 @@ class Editor {
             this.state.selectedFrameIndex--;
         }
 
+        this.syncAnimatorState();
         this.updateUI();
         this.drawSpriteCanvas();
         this.saveToLocalStorage();
@@ -292,6 +329,7 @@ class Editor {
     updateFrameDuration(index, duration) {
         if (!this.state.currentAnimation) return;
         this.state.animations[this.state.currentAnimation].frames[index].duration = parseFloat(duration);
+        this.syncAnimatorState();
         this.saveToLocalStorage();
     }
 
@@ -310,6 +348,7 @@ class Editor {
             this.state.selectedFrameIndex++;
         }
 
+        this.syncAnimatorState();
         this.updateUI();
         this.drawSpriteCanvas();
         this.saveToLocalStorage();
@@ -328,6 +367,7 @@ class Editor {
         frame.y = Math.round(y);
         frame.width = Math.round(width);
         frame.height = Math.round(height);
+        this.syncAnimatorState();
         this.updateUI();
         this.saveToLocalStorage();
     }
@@ -852,24 +892,25 @@ class Editor {
     }
 
     drawPreview(deltaTime) {
+        // Clear canvas
         this.previewCtx.fillStyle = '#000';
         this.previewCtx.fillRect(0, 0, this.previewCanvas.width, this.previewCanvas.height);
 
-        if (!this.state.currentAnimation || !this.state.spriteLoaded) {
+        if (!this.state.currentAnimation || !this.state.spriteLoaded || !this.animator) {
             return;
         }
 
         const anim = this.state.animations[this.state.currentAnimation];
-        if (anim.frames.length === 0) return;
+        if (!anim || anim.frames.length === 0) return;
 
-        // Ensure frame index is valid
-        if (this.previewState.currentFrame >= anim.frames.length) {
-            this.previewState.currentFrame = 0;
-        }
+        // Update animator
+        this.animator.update(deltaTime);
 
-        const frame = anim.frames[this.previewState.currentFrame];
+        // Get current frame info from animator
+        const currentFrameIndex = this.animator.getCurrentFrame();
+        const frame = anim.frames[currentFrameIndex];
 
-        // Draw centered and scaled
+        // Calculate centered and scaled position
         const scale = Math.min(
             this.previewCanvas.width / frame.width,
             this.previewCanvas.height / frame.height,
@@ -880,49 +921,49 @@ class Editor {
         const x = (this.previewCanvas.width - w) / 2;
         const y = (this.previewCanvas.height - h) / 2;
 
-        this.previewCtx.drawImage(this.state.spriteImage,
-            frame.x, frame.y, frame.width, frame.height,
-            x, y, w, h);
+        // Draw using animator
+        this.animator.draw(this.previewCtx, x, y, w, h);
 
-        // Update frame (only if playing)
-        if (this.previewState.isPlaying) {
-            this.previewState.frameTime += deltaTime;
-            if (this.previewState.frameTime >= frame.duration) {
-                this.previewState.frameTime = 0;
-                this.previewState.currentFrame++;
-                if (this.previewState.currentFrame >= anim.frames.length) {
-                    if (anim.loop) {
-                        this.previewState.currentFrame = 0;
-                    } else {
-                        this.previewState.currentFrame = anim.frames.length - 1;
-                        this.previewState.isPlaying = false;
-                        this.updatePlayPauseButton();
-                    }
-                }
-            }
+        // Update play state from animator
+        if (!this.animator.isAnimationPlaying() && this.previewState.isPlaying) {
+            this.previewState.isPlaying = false;
+            this.updatePlayPauseButton();
         }
 
         // Update info
         const playStatus = this.previewState.isPlaying ? 'Playing' : 'Paused';
         document.getElementById('previewInfo').textContent =
-            `Frame ${this.previewState.currentFrame + 1}/${anim.frames.length} | ${anim.fps} FPS | ${anim.loop ? 'Loop' : 'Once'} | ${playStatus}`;
+            `Frame ${currentFrameIndex + 1}/${anim.frames.length} | ${anim.fps} FPS | ${anim.loop ? 'Loop' : 'Once'} | ${playStatus}`;
     }
 
     // Preview controls
     reloadPreview() {
         this.resetPreviewState();
         this.previewState.isPlaying = true;
+        if (this.animator && this.state.currentAnimation) {
+            this.animator.play(this.state.currentAnimation, true);
+        }
         this.updatePlayPauseButton();
     }
 
     togglePlayPreview() {
         this.previewState.isPlaying = !this.previewState.isPlaying;
+        if (this.animator) {
+            if (this.previewState.isPlaying) {
+                this.animator.resume();
+            } else {
+                this.animator.pause();
+            }
+        }
         this.updatePlayPauseButton();
     }
 
     stopPreview() {
         this.resetPreviewState();
         this.previewState.isPlaying = false;
+        if (this.animator) {
+            this.animator.stop();
+        }
         this.updatePlayPauseButton();
     }
 
@@ -1000,3 +1041,5 @@ class Editor {
         }
     }
 }
+
+export { Editor };

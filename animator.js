@@ -1,3 +1,5 @@
+'use strict';
+
 /**
  * SpriteSheetAnimator - A class for managing sprite sheet animations
  */
@@ -59,44 +61,26 @@ class SpriteSheetAnimator {
      * @param {number} config.frames[].y - Y position in sprite sheet
      * @param {number} config.frames[].width - Frame width (optional, uses default)
      * @param {number} config.frames[].height - Frame height (optional, uses default)
-     * @param {number} config.frameRate - Frames per second (default: 10)
+     * @param {number} config.frames[].duration - Frame duration in ms (optional, uses fps)
+     * @param {number} config.fps - Frames per second (default: 10, used if frame.duration not set)
      * @param {boolean} config.loop - Whether to loop the animation (default: true)
      */
     addAnimation(name, config) {
+        const fps = config.fps || 10;
+        const defaultDuration = 1000 / fps;
+        const loop = config.loop !== undefined ? config.loop : true;
+
+        // Process frames to ensure each has a duration
+        const frames = (config.frames || []).map(frame => ({
+            ...frame,
+            duration: frame.duration !== undefined ? frame.duration : defaultDuration
+        }));
+
         this.animations[name] = {
-            frames: config.frames || [],
-            frameRate: config.frameRate || 10,
-            loop: config.loop !== undefined ? config.loop : true,
-            frameDuration: 1000 / (config.frameRate || 10)
+            frames,
+            fps,
+            loop,
         };
-    }
-
-    /**
-     * Add an animation using a grid-based approach
-     * @param {string} name - Name of the animation
-     * @param {Object} config - Animation configuration
-     * @param {number} config.row - Row in the sprite sheet (0-based)
-     * @param {number} config.startCol - Starting column (0-based)
-     * @param {number} config.frameCount - Number of frames
-     * @param {number} config.frameRate - Frames per second (default: 10)
-     * @param {boolean} config.loop - Whether to loop (default: true)
-     */
-    addAnimationFromGrid(name, config) {
-        const frames = [];
-        for (let i = 0; i < config.frameCount; i++) {
-            frames.push({
-                x: this.offsetX + (config.startCol + i) * this.frameWidth,
-                y: this.offsetY + config.row * this.frameHeight,
-                width: this.frameWidth,
-                height: this.frameHeight
-            });
-        }
-
-        this.addAnimation(name, {
-            frames: frames,
-            frameRate: config.frameRate || 10,
-            loop: config.loop !== undefined ? config.loop : true
-        });
     }
 
     /**
@@ -159,8 +143,11 @@ class SpriteSheetAnimator {
 
         this.frameTime += deltaTime;
 
-        if (this.frameTime >= animation.frameDuration) {
-            this.frameTime -= animation.frameDuration;
+        // Get current frame's duration
+        const currentFrameDuration = animation.frames[this.currentFrame].duration;
+
+        if (this.frameTime >= currentFrameDuration) {
+            this.frameTime -= currentFrameDuration;
             this.currentFrame++;
 
             if (this.currentFrame >= animation.frames.length) {
@@ -244,3 +231,5 @@ class SpriteSheetAnimator {
         this.onComplete = callback;
     }
 }
+
+export { SpriteSheetAnimator };
