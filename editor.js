@@ -60,6 +60,14 @@ class Editor {
             panStartY: 0
         };
 
+        // Detection feedback state (for shift-click flood fill)
+        this.detectionFeedback = {
+            active: false,
+            boundingBox: null,
+            visitedPixels: null,
+            timeout: null
+        };
+
         // Canvas references
         this.spriteCanvas = document.getElementById('spriteCanvas');
         this.spriteCtx = this.spriteCanvas.getContext('2d');
@@ -288,6 +296,30 @@ class Editor {
         this.saveToLocalStorage();
     }
 
+    renameAnimation(oldName) {
+        const newName = prompt('Enter new animation name:', oldName);
+        if (!newName || newName === oldName) return;
+
+        if (this.state.animations[newName]) {
+            alert(`Animation "${newName}" already exists`);
+            return;
+        }
+
+        // Rename the animation
+        this.state.animations[newName] = this.state.animations[oldName];
+        this.state.animations[newName].name = newName;
+        delete this.state.animations[oldName];
+
+        // Update current animation if it was the renamed one
+        if (this.state.currentAnimation === oldName) {
+            this.state.currentAnimation = newName;
+        }
+
+        this.syncAnimatorState();
+        this.updateUI();
+        this.saveToLocalStorage();
+    }
+
     updateAnimationName() {
         const newName = document.getElementById('animationName').value;
         const oldName = this.state.currentAnimation;
@@ -476,6 +508,146 @@ class Editor {
         return { x, y };
     }
 
+    // Flood fill detection for shift-click frame detection
+    detectAndAddFrameByFloodFill(startX, startY) {
+        if (!this.state.spriteLoaded) return;
+
+        // Check if we have a current animation
+        if (!this.state.currentAnimation) {
+            alert('Please select or create an animation first');
+            return;
+        }
+
+        // Round coordinates to integers
+        startX = Math.floor(startX);
+        startY = Math.floor(startY);
+
+        // Create temporary canvas to extract pixel data
+        const tempCanvas = document.createElement('canvas');
+        const img = this.state.spriteImage;
+        tempCanvas.width = img.width;
+        tempCanvas.height = img.height;
+        const tempCtx = tempCanvas.getContext('2d');
+        tempCtx.drawImage(img, 0, 0);
+
+        // Validate click point is within image bounds
+        if (startX < 0 || startX >= img.width || startY < 0 || startY >= img.height) {
+            alert('Click point is outside the sprite image');
+            return;
+        }
+
+        // Get pixel data
+        const imageData = tempCtx.getImageData(0, 0, img.width, img.height);
+        const pixels = imageData.data;
+
+        // Helper function to get pixel index
+        const getPixelIndex = (x, y) => (y * img.width + x) * 4;
+
+        // Check if seed pixel has alpha > 0
+        const seedIndex = getPixelIndex(startX, startY);
+        const seedAlpha = pixels[seedIndex + 3];
+
+        if (seedAlpha === 0) {
+            alert('Clicked on transparent pixel. Please click on an opaque area.');
+            return;
+        }
+
+        // Perform 8-directional flood fill
+        const visited = new Set();
+        const queue = [[startX, startY]];
+        const visitedPixels = [];
+
+        let minX = startX;
+        let maxX = startX;
+        let minY = startY;
+        let maxY = startY;
+
+        const directions = [
+            [-1, -1], [0, -1], [1, -1],  // NW, N, NE
+            [-1, 0],           [1, 0],    // W,     E
+            [-1, 1],  [0, 1],  [1, 1]     // SW, S, SE
+        ];
+
+        const maxPixels = 100000; // Safety limit
+        let pixelCount = 0;
+
+        while (queue.length > 0 && pixelCount < maxPixels) {
+            const [x, y] = queue.shift();
+            const key = `${x},${y}`;
+
+            // Skip if already visited or out of bounds
+            if (visited.has(key) || x < 0 || x >= img.width || y < 0 || y >= img.height) {
+                continue;
+            }
+
+            // Check if pixel has alpha > 0
+            const pixelIndex = getPixelIndex(x, y);
+            const alpha = pixels[pixelIndex + 3];
+
+            if (alpha === 0) {
+                continue;
+            }
+
+            // Mark as visited
+            visited.add(key);
+            visitedPixels.push([x, y]);
+            pixelCount++;
+
+            // Update bounding box
+            minX = Math.min(minX, x);
+            maxX = Math.max(maxX, x);
+            minY = Math.min(minY, y);
+            maxY = Math.max(maxY, y);
+
+            // Add 8 neighbors to queue
+            for (const [dx, dy] of directions) {
+                queue.push([x + dx, y + dy]);
+            }
+        }
+
+        if (pixelCount >= maxPixels) {
+            console.warn('Flood fill reached maximum pixel limit');
+        }
+
+        // Calculate bounding box dimensions
+        const boundingBox = {
+            x: minX,
+            y: minY,
+            width: maxX - minX + 1,
+            height: maxY - minY + 1
+        };
+
+        // Validate bounding box
+        if (boundingBox.width < 1 || boundingBox.height < 1) {
+            alert('Invalid frame detected');
+            return;
+        }
+
+        // Store detection feedback for visual display
+        this.detectionFeedback.active = true;
+        this.detectionFeedback.boundingBox = boundingBox;
+        this.detectionFeedback.visitedPixels = visitedPixels;
+
+        // Clear previous timeout if exists
+        if (this.detectionFeedback.timeout) {
+            clearTimeout(this.detectionFeedback.timeout);
+        }
+
+        // Auto-clear feedback after 2 seconds
+        this.detectionFeedback.timeout = setTimeout(() => {
+            this.detectionFeedback.active = false;
+            this.detectionFeedback.boundingBox = null;
+            this.detectionFeedback.visitedPixels = null;
+            this.drawSpriteCanvas();
+        }, 2000);
+
+        // Add the frame immediately
+        this.addFrame(boundingBox.x, boundingBox.y, boundingBox.width, boundingBox.height);
+
+        // Redraw to show feedback
+        this.drawSpriteCanvas();
+    }
+
     // Canvas drawing
     drawSpriteCanvas() {
         if (!this.state.spriteLoaded) return;
@@ -534,6 +706,35 @@ class Editor {
             this.spriteCtx.fillRect(x, y, w, h);
         }
 
+        // Draw detection feedback (from shift-click flood fill)
+        if (this.detectionFeedback.active && this.detectionFeedback.boundingBox) {
+            const bbox = this.detectionFeedback.boundingBox;
+            const visitedPixels = this.detectionFeedback.visitedPixels;
+
+            // Highlight detected region pixels
+            if (visitedPixels && visitedPixels.length > 0) {
+                this.spriteCtx.fillStyle = 'rgba(0, 255, 0, 0.3)';
+                // For performance, draw larger blocks for dense regions
+                // Sample or batch draw pixels
+                const sampleRate = Math.max(1, Math.floor(visitedPixels.length / 5000));
+                for (let i = 0; i < visitedPixels.length; i += sampleRate) {
+                    const [x, y] = visitedPixels[i];
+                    this.spriteCtx.fillRect(x, y, 1, 1);
+                }
+            }
+
+            // Draw bounding box
+            this.spriteCtx.strokeStyle = 'lime';
+            this.spriteCtx.lineWidth = 3;
+            this.spriteCtx.strokeRect(bbox.x, bbox.y, bbox.width, bbox.height);
+
+            // Draw info text
+            this.spriteCtx.fillStyle = 'lime';
+            this.spriteCtx.font = 'bold 14px sans-serif';
+            const infoText = `Detected: ${bbox.width}×${bbox.height}`;
+            this.spriteCtx.fillText(infoText, bbox.x + 5, bbox.y - 5);
+        }
+
         // Restore the context state
         this.spriteCtx.restore();
     }
@@ -546,6 +747,13 @@ class Editor {
         const screenX = e.clientX - rect.left;
         const screenY = e.clientY - rect.top;
         const { x, y } = this.screenToCanvas(screenX, screenY);
+
+        // Check for shift+left click (flood fill frame detection)
+        if (e.shiftKey && e.button === 0) {
+            e.preventDefault();
+            this.detectAndAddFrameByFloodFill(x, y);
+            return;
+        }
 
         // Check for middle mouse button (pan mode)
         if (e.button === 1) {
@@ -803,6 +1011,10 @@ class Editor {
             nameSpan.className = 'animation-item-name';
             nameSpan.textContent = name;
             nameSpan.onclick = () => this.selectAnimation(name);
+            nameSpan.ondblclick = (e) => {
+                e.stopPropagation();
+                this.renameAnimation(name);
+            };
 
             const deleteBtn = document.createElement('button');
             deleteBtn.className = 'animation-item-delete';
