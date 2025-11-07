@@ -573,7 +573,7 @@ class Editor {
         const seedAlpha = pixels[seedIndex + 3];
 
         if (seedAlpha === 0) {
-            alert('Clicked on transparent pixel. Please click on an opaque area.');
+            // Silently ignore clicks on transparent pixels
             return;
         }
 
